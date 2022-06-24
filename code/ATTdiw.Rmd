@@ -1,0 +1,257 @@
+---
+title: "Data wrangling for ATT - VEMCO data edit"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+This Rmd takes the output of the diw.Rmd (alldata), along with tag/receiver metadata, and converts into a format suitable for making an ATT object
+
+# PRELIMINARIES #
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(VTrack)
+library(readxl)
+library(arsenal) # For comparing differences in tibbles 
+library(lubridate)
+library(tidyverse)
+```
+
+
+# Step 1. Main detection data set up
+
+
+# Load detection data
+```{r}
+load(file = "../data/RData/alldata.RData")
+```
+
+## Check against format required for IMOS/ATT:
+```{r}
+data(IMOSdata) # Note: the VEMCOdata file format that comes with vTrack would be a better format for us (more similar to our raw data), however the ATT code/fxns doesn't work on it!!
+```
+
+## And compare (run whole chunk at once)
+```{r}
+glimpse(alldata)
+glimpse(IMOSdata)
+```
+
+Missing some columns and others have different names and some are also wrong format (IMOS data has dttm as factor) 
+
+## Convert to ATT format:
+```{r}
+setupdata <- alldata %>% 
+  mutate(tag_id	= transmitter_id,
+         transmitter_id = transmitter_id,
+         FID = factor(NA),
+         id =	NA, 
+         file_id = NA,
+         url = factor(NA),
+         release_id = Project_code,
+         tag_project_name	= factor('CSMP'),
+         common_name = Common_name,
+         scientific_name = Scientific_name,
+         installation_name = NA,
+         station_name =	station_name,
+         receiver_name = receiver_name,
+         detection_timestamp = detection_timestamp,
+         longitude = Long,
+         latitude =	Lat,
+         sensor_value =	Sensor.Value,
+         sensor_unit = factor(NA),
+         FDA_QC	= NA,
+         Velocity_QC = NA,
+         Distance_QC = NA,
+         DetectionDistribution_QC =	NA,
+         DistanceRelease_QC =	NA,
+         ReleaseDate_QC =	NA,
+         ReleaseLocation_QC =	NA,
+         Detection_QC	= NA,
+         release_longitude = Long,
+         release_latitude	= Lat,
+         ReleaseDate = Date,
+         sensor_slope = Slope,
+         sensor_intercept = Intercept,
+         sensor_type = Type,
+         tag_sensor_unit = NA,
+         tag_model_name = Model,
+         tag_serial_number = Serial,
+         tag_expected_life_time_days = NA,
+         tag_status = NA,	
+         sex = Sex,
+         measurement = TL,
+         dual_sensor_tag = NA,
+         geom	= NA,
+         .keep='none')
+
+summary(setupdata$sensor_intercept)
+summary(alldata$Intercept)
+
+```
+
+## And check against IMOSdata (run whole chunk at same time)
+```{r}
+# General overview 
+#glimpse(setupdata)
+#glimpse(IMOSdata)
+
+# List of column names
+#print(tibble(colnames(setupdata)), n=100)
+#print(tibble(colnames(IMOSdata)), n=100)
+# (Here you can copy out the lists of column names into csv for an external)
+```
+
+## Formal check using arsenal
+```{r}
+#cols1 <- tibble(colnames(setupdata))
+#cols2 <- tibble(colnames(IMOSdata))
+#summary(comparedf(cols1, cols2))
+```
+
+Looks good = save
+```{r}
+save(setupdata, file = "../data/RData/ATTsetupdata.RData")
+```
+
+
+# Step 2. Tag metadata
+
+## Load the list of known tags deployed in QLD/GBR/CSMP region
+The following chunk runs a separate script to import files relating to both sharks and teleosts tagged in the regions (From Adam's master list) and combines to make one database of tagged animals ("regional_tag_list):
+```{r warning=FALSE}
+source("../code/regional_tag_list.R", local = knitr::knit_global())
+rm("regional_shark_list", "regional_teleost_list") # Remove the individual shark and telost lists as we don't need them separately (for now)
+```
+
+## From this list we'll extract all the known regional tags that are in our detection database
+```{r}
+ATTdetected_tags <- setupdata %>% 
+  distinct(transmitter_id) %>% 
+  merge(regional_tag_list)
+```
+
+## Save as RData
+```{r}
+save(ATTdetected_tags, file = "../data/RData/detected_tags.RData")
+```
+
+
+## Create tag metadata (IMOS ATT format)
+```{r} 
+tagdata <- detected_tags %>% 
+  mutate(tag_id = transmitter_id,
+         transmitter_id = transmitter_id,
+         release_id = Project_code,
+         tag_project_name = 'CSMP',
+         scientific_name = Scientific_name,
+         common_name = Common_name,
+         embargo_date = NA,
+         is_protected = FALSE,
+         release_longitude = Long,
+         release_latitude = Lat,
+         ReleaseDate = factor(Date),
+         sensor_slope = as.numeric(Slope),
+         sensor_intercept = as.numeric(Intercept),
+         sensor_type = Type,
+         sensor_unit = factor(case_when(grepl("press", `Type`) ~ "Meters",      
+                                 grepl("temp", `Type`) ~ "Celcius")),
+         tag_model_name = Model,
+         tag_serial_number = as.integer(Serial),
+         tag_expected_life_time_days = as.integer(NA),
+         tag_status = factor('DEPLOYED'),
+         sex = Sex,
+         measurement = factor(TL),
+         dual_sensor_tag = FALSE,
+         .keep='unused')
+```
+
+## And compare against the IMOS format
+```{r}
+data("taginfo")
+glimpse(tagdata)
+glimpse(taginfo)
+
+```
+
+
+# Step 3. Receiver (station) metadata
+```{r}
+# File per deployment
+vr2ws_dep1 <- read_excel('../data/receiver_list_dep1.xlsx', trim_ws = TRUE)
+vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE)
+# And join
+stationdata <- rbind(vr2ws_dep1, vr2ws_dep2) %>% 
+  mutate(status='DEPLOYED',    # Add some extra columns on that should be there
+         imos_device='FALSE')
+```
+
+
+## Compare against IMOS format
+
+```{r}
+data("statinfo")
+glimpse(stationdata)
+glimpse(statinfo)
+
+```
+
+
+
+# Step 4
+
+# Now try to make an ATT object
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+myATTdata <- setupData(Tag.Detections = setupdata, 
+                     Tag.Metadata = tagdata, 
+                     Station.Information = stationdata, 
+                     source = "IMOS")
+```
+
+## Load IMOSdata for comparison
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+data("IMOSdata")
+ATTdata <- setupData(Tag.Detections = IMOSdata, 
+                     Tag.Metadata = taginfo, 
+                     Station.Information = statinfo, 
+                     source = "IMOS")
+```
+
+## Compare
+```{r}
+## Can't compare whole objects easily (as they are lists) but can check sub-units of what's in there:
+glimpse(ATTdata$Tag.Detections)
+glimpse(myATTdata$Tag.Detections)
+```
+Looks good so we'll save!
+
+
+```{r}
+save(myATTdata, file = "../data/RData/myATTdata.RData")
+```
+
+
+
+

@@ -1,0 +1,90 @@
+---
+title: "Checking movements outside CSMP array"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Script to double check any outside detections of animals
+Obviously we don't inherently know if our animals have moved outside our array. But we can download detections from IMOS database and filter these out to see if any of our animals have turned up elsewhere...
+
+# Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width = 7, fig.height = 7)
+#rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(readxl)
+library(tidyverse)
+```
+
+
+# Load data
+```{r}
+imos_data <- read_csv('../data/IMOS_detections.csv') # All detections for the 'IMOS / AIMS Acoustic Telemetry Array Queensland' -> includes CSMP receivers/transmitters
+head(imos_data)
+```
+
+This df will not contain any information for an animal that was tagged (but was registered) but then completely disappeared - ie it's detections only.
+For our project, we have some animals that we tagged and immediately disappeared and some animals that we didn't tag and that we have detected. We probably want to check for all of these in the IMOS database, so we'll combine the project tag list with the detected tag list and use this to filter out the animals of interest.
+
+# Project tag list
+```{r}
+source("../code/project_tag_list.R")
+```
+
+# Detected tag list
+```{r}
+detected_tags <- alldata %>% 
+  distinct(transmitter_id) %>% 
+  arrange(transmitter_id) 
+```
+
+# Combine
+```{r}
+all_tags <- project_tag_list %>% 
+  select(transmitter_id) %>% 
+  bind_rows(detected_tags) %>% 
+  distinct()
+```
+
+
+# Use these dfs to filter out our animal obs from the IMOS list
+
+# CSMP animals outside CSMP array
+```{r}
+imos_filtered <- imos_data %>% 
+  filter(transmitter_id %in% project_tag_list$transmitter_id) %>% 
+  filter(installation_name != 'Coral Sea Receivers')
+```
+Just that GRS
+
+
+# non-CSMP animals INside CSMP array
+```{r}
+imos_filtered2 <- imos_data %>% 
+  filter(!transmitter_id %in% project_tag_list$transmitter_id) %>% 
+  filter(installation_name == 'Coral Sea Receivers')
+```
+
+Two of the tiger sharks.
+
+Where is the other one that we know about? -> Answer: because it was tagged (and registered) but hasn't had any other detections anywhere, it doesn't pop up on the IMOS detections database. So we should check the IMOS list of ALL animals that have been tagged/registered in QLD/GBR and see if any of these pop up in our array. This is what the unknown_tag_asst doc is for.
+
+
+

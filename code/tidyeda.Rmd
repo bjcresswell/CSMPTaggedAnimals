@@ -1,0 +1,372 @@
+---
+title: "Transmitter data import and wrangling"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+This Rmd takes the Vue database (exported to csv format) and conducts EDA primarily using dplyr/tidyverse
+Code initially taken from tutorial at: https://vinayudyawer.github.io/Animals-in-Motion-2018/Documents/OCS2018.html#session_4:_centres_of_activity_and_home_range_estimation
+
+# PRELIMINARIES #
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+#library(VTrack) # Current R doesn't like VTrack - may need to install an earlier version..
+```
+
+
+# Load data
+```{r}
+#rm(list=ls())
+load(file = "../data/RData/alldata.RData")
+ # mutate(date=as.Date(detection_timestamp)) 
+#Could also load the setup data file. Very similar but should be more in IMOS format
+load(file = "../data/RData/attsetupdata.RData")
+
+#alldata <- alldata %>% 
+#  mutate(date=date(detection_timestamp))# adding a column with date of each detection (need later on)
+setupdata <- setupdata %>% 
+  mutate(date=date(detection_timestamp))# adding a column with date of each detection
+```
+
+
+
+```{r}
+#head(alldata)
+#glimpse(setupdata)
+```
+
+# Dataframe is massive - would be good to drill down into it
+
+## First check names are all recorded correctly
+```{r}
+#head(alldata)
+summary(alldata$Scientific_name)
+summary(alldata$Common_name) # Multiple spellings for GTs but we can filter by sci name for those
+```
+## Questions
+- Put laevis in or leave out? - work up map on that. Try to compare that with lunar cycles
+- Also lunar cycles (or other) for GTs?
+
+
+# Filter out by taxa 
+
+## Sharks
+```{r}
+# All greys
+grs_all <- 
+  alldata %>% 
+  filter(Common_name == 'Grey Reef')
+  
+# All silvertips
+silvers_all <- alldata %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+# All tigers
+tigers_all <- alldata %>% 
+  filter(Common_name == 'Tiger shark')
+
+```
+
+## Teleosts
+```{r}
+# All trevallies
+trevs <- alldata %>% 
+  filter(str_detect(Scientific_name, str_c(c('Caranx'), collapse="|"))) # Includes lugubris
+
+# All GTs
+gts <- alldata %>% 
+  filter(Scientific_name == 'Caranx ignobilis')
+
+# The one P. laevis
+trout <- alldata %>% 
+  filter(Scientific_name == 'Plectopomus laevis') # Note the spelling mistake - will have to sort out later on
+```
+
+
+
+```{r}
+# Greys at Osprey Reef
+os_grs <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Common_name == 'Grey Reef')
+
+# Silvers at Osprey Reef
+os_silvers <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+# Silvers at Holmes Reef
+hr_silvers <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+summary(alldata$Location)
+
+```
+
+
+
+
+#
+
+# Check how many animals
+```{r}
+os_grs %>% 
+  distinct(transmitter_id) # 51
+silvers %>% 
+  distinct(transmitter_id) # 13
+gts %>% 
+  distinct(transmitter_id) # 11
+trevs %>% 
+  distinct(transmitter_id) # 16
+trout %>%  
+  distinct(transmitter_id) # 1
+```
+
+
+
+# Abacus plots
+## GTs
+```{r}
+gts %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = as.factor(transmitter_id))) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point()
+
+```
+
+
+## Silvers
+```{r}
+silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = as.factor(transmitter_id))) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() 
+
+```
+
+## and faceted out by installation name (of where receiver was)
+```{r fig.height = 10, fig.width = 16}
+silv_ab <- silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+silv_ab
+```
+ 64080 moved from Holmes to Flinders to Osprey over the year with a long gap of no detections
+ 
+ 
+
+## Save to get a better look
+```{r save-silver-ab}
+#ggsave(filename = '../output/silver_abacus_overview.png', silv_ab, width = 1000, height = 600, units = 'mm', dpi = 300)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### MY ORIGINAL GO...
+
+# First will subset data to make manageable for experimentation
+```{r}
+
+
+#subsetdata <- alldata %>% 
+ # filter(transmitter_id=="A69-9001-64090") # GRS from Osprey on trip 1
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Now we have the master dataframe with all the necessary information in (VR2W location, animal info etc)
+## Check how many tags tags recorded over the entire study
+
+```{r}
+detected_tags <- alldata %>% 
+  distinct(transmitter_id) %>% 
+  arrange(transmitter_id) %>% 
+  glimpse()
+```
+- 196 total tag IDs detected during study so far
+- We have ~112 physical tags deployed so it seems we are picking up a bunch of other animals/tags
+- Some of these are sensor tags which have 2 Vue Tag IDs each so the number of detected tags should be more
+- Some of the non-study tags may be ghosts or false readings. Need to investigate..
+
+
+# Next steps:
+
+1. Unknown tag assessment:
+Need to check what Tag_IDs are appearing from outside both our study and Adams's master list (see the Rmd "unknown_tag_asst")
+From these, determine which detections are bogus and which might be from real tagged animals (using the IMOS "Mystery Tag tool")
+
+2. Known tags:
+Need to split out tagged animals that are just from our specific CSMP study and those that are from the wider region, including tigers etc.
+
+3. CSMP tags:
+Same 
+
+3. Sensor data:
+Need to wrangle and calibrate sensor data
+
+4. Abacus plots:
+Going to try these first
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Moving on...
+
+# Split out 
+
+
+
+
+
+
+
+
+
+# Sensor data wrangling
+
+```{r}
+
+
+# Filter out data from tags with temp and pressure sensors
+sensor_data <- database_dep2_details2 %>% 
+  filter(Sensor.Value!='NA')
+```
+
+
+
+
+
+
+
+
+
+
+
+### JUNK/ARCHIVE ###
+
+
+# Box plots - numbers of detections per day
+## Silvertips
+```{r}
+silvers %>%
+  group_by(transmitter_id, date) %>% 
+  summarise(DailyDetections= n()) %>% # use summarise to calculate numbers of detections per day per animal
+  ggplot(mapping = aes(x = transmitter_id, y = DailyDetections)) + # define the aesthetic map (what to plot)
+  xlab("Tag") + ylab("Number of detections per day") +
+  geom_boxplot() # define the geometric object (how to plot it).. in this case a boxplot
+```
+## GTs
+```{r}
+trevs %>%
+  group_by(transmitter_id, date) %>% 
+  summarise(DailyDetections= n()) %>% # use summarise to calculate numbers of detections per day per animal
+  ggplot(mapping = aes(x = transmitter_id, y = DailyDetections)) + # define the aesthetic map (what to plot)
+  xlab("Tag") + ylab("Number of detections per day") +
+  geom_boxplot() # define the geometric object (how to plot it).. in this case a boxplot
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+

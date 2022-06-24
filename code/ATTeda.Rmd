@@ -1,0 +1,270 @@
+---
+title: "Investigating data using ATT"
+author: "Ben Cresswell"
+date: "31/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load ATT data for our project
+```{r}
+load(file = "../data/RData/myATTdata.RData")
+```
+
+# EDA
+
+## Braod overview
+```{r}
+myATTdata$Tag.Detections
+```
+
+
+## Calculating detection metrics
+
+## Detection summary (won't work if setup not correct)
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+## Calculate detecion metrics with monthly subsets chosen
+detSum <- detectionSummary(myATTdata,  
+                           sub = "%Y-%m") # Nico mentioned a potential issue with this - if you've tagged an individual halfway throguh the month, will it show up?
+```
+
+
+`detectionSummary()` outputs a list object with two components, `$Overall`: detection metrics for the full period of the tag and `$Subsetted`: detection metrics for weekly or monthly temporal subsets depending on the `sub` argument. 
+
+# Assign the detection summary components to stand-alone tibbles
+```{r, eval=FALSE}
+## Accessing metrics of detection for full tag life
+totaldets <- tibble(detSum$Overall) %>% 
+  mutate_if(is.character, as.factor)
+## Accessing metrics of detection for each temporal subset
+subsetdets <- tibble(detSum$Subsetted) %>% 
+    mutate_if(is.character, as.factor)
+
+```
+
+Can use these to filter out individuals or species
+
+```{r}
+gtdets <- totaldets %>% 
+  filter(Sci.Name == 'Caranx ignobilis')
+gtdets
+
+```
+
+
+
+
+
+
+#### EXPERIMENT ####
+
+Can we subset inside an ATT object?
+
+```{r}
+
+
+
+
+
+```
+
+
+
+
+
+## Create an abacus plot
+```{r, eval=FALSE}
+abplot <- abacusPlot(ATTdata = myATTdata) # Pointlessly large (all transmitters and all receivers) - need to filter data down a bit
+#abplot
+#ggsave(abplot, filename = "../output/abplottest.png")
+```
+
+# Facetted abacus plot
+```{r facet-abacus, eval=FALSE, message=FALSE, warning=FALSE}
+## Create a facetted abacus plot for groups
+## Silvertips
+silvers <- abacusPlot(ATTdata = myATTdata, 
+           id = c("A69-9001-60566","A69-9001-60571", "A69-9001-64072"), # Can add more
+           facet = TRUE)
+
+tigers <-  abacusPlot(ATTdata = myATTdata, 
+           id = c("A69-9001-4172","A69-9001-63847", "A69-9001-63947"), # Can add more
+           facet = TRUE)
+tigers
+ggsave(tigers, filename = "../output/gcuvier_detections.png")
+```
+
+
+
+```{r}
+
+osprey_grs_list <- detected_tags %>% 
+  mutate(across(where(is.factor), as.character)) %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Common_name == 'Grey Reef') %>% 
+  pull(Tag_ID)
+
+```
+
+
+```{r}
+
+os_grs_ab <- abacusPlot(ATTdata = myATTdata, 
+           id = osprey_grs_list, # Can add more
+           facet = TRUE)
+
+os_grs_ab
+ggsave(os_grs_ab, filename = "../output/os_grs_abacus.png", width=16,  height=10, dpi = 1000)
+
+
+```
+
+
+
+# Calculate center of activity (COA) 
+
+```{r coa-calc, eval=TRUE, message=FALSE, warning=FALSE}
+myCOAdata <- COA(ATTdata = myATTdata, 
+               timestep = 60, ## timestep bin used to estimate centers of activity (in minutes)
+               split = TRUE)
+```
+
+`COA()` produces a single tibble data frame with centers of activity positions estimated for each timestep bin when `split = FALSE`; and a list object with centers of activity positions for each individual when `split = TRUE`.
+
+
+## Check
+```{r, coa-check1, eval=TRUE, message=FALSE, warning=FALSE}
+myCOAdata[1:2] # THis just gives you the first 2 Tag IDs
+```
+
+
+## Can view by specific fish
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+COAdata$`77523307`
+```
+
+# Now can calculate activity space metrics
+
+## First define projected Coordinate Reference System 
+```{r}
+# Projected coordinate systems should signify distance in meters so the output area values are in sq meters
+# (here epsg:3577 refers to the GDA94 Australian Albers projection)
+proj <- sp::CRS("+init=epsg:3577")
+```
+
+
+## Estimate 100% Maximum Convex Polygon (MCP) areas
+```{r warning=FALSE}
+mymcp_est <- HRSummary(COAdata = myCOAdata, 
+                     projCRS = proj, 
+                     type = "MCP", 
+                     cont = 100,
+                     sub = "%Y-%m")
+mymcp_est
+```
+
+
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+##*** Warning: the following might take a little while to run! ***##
+## Estimate 50% and 95% fixed Kernel Utilisation Distribution ('fKUD') contour areas with cumulative metrics calculated
+myfkud_est <- HRSummary(COAdata = myCOAdata, 
+                      projCRS = proj, 
+                      type = "fKUD",
+                      cont = c(50,95),
+                      cumulative = TRUE)  
+```
+
+## Storing spatial data associated with activity space metrics
+
+MCP polygons and probability distributions associated with fKUD and BBKUDs can be stored when `storepoly = TRUE`. This outputs a list object with the two components, `$Overall`: a tibble data frame with activity space metrics for the full period of the tag and `$Subsetted`: a tibble data frame with activity space metrics for weekly or monthly temporal subsets depending on the `sub` argument, but also includes an additional `$Spatial.Objects` list that stores polygons (if calculating MCPs) or probability distribution raster (if calculating fKUD or BBKUD) for full tag life and temporal subsets.
+
+```{r, echo=TRUE, results='hide', fig.keep='all', message = FALSE, warning=FALSE}
+## Estimate 20%, 50% and 95% Brownian Bridge Kernel Utilisation Distribution ('BBKUD') contour areas and store polygons
+myBBkud_est <- HRSummary(COAdata = myCOAdata, 
+                       projCRS = proj, 
+                       type = "BBKUD", 
+                       cont = c(20,50,95), 
+                       storepoly = TRUE)
+```
+
+## Map activity space
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+## Base plots using raster
+# Activity space for full tag life
+library(tidyverse)
+library(lubridate)
+library(raster)
+library(viridis) ## access more color palettes!
+## Select rasters of full KUDs for each individual into a single list
+fullstack <-
+  unlist(BBkud_est$Spatial.Objects)[grep("*_full", names(unlist(BBkud_est$Spatial.Objects)))]
+names(fullstack) <-
+  unlist(lapply(strsplit(names(fullstack), "[.]"), `[[`, 1))
+
+## Lets plot the overall BBKUD for Tag.ID `A69-1602-50959`
+fulltag <- fullstack$`A69-1602-50959`
+
+fulltag
+
+#values(fulltag)[values(fulltag) > 96] <- NA
+raster::plot(fulltag, col = viridis(100), zlim = c(0, 100),
+     xlim=c(146.53, 146.59), ylim=c(-13.92, -13.85))
+points(station_latitude ~ station_longitude, statinfo, col = 2, cex=0.7)
+points(Latitude.coa ~ Longitude.coa,
+       data = myCOAdata$`A69-1602-50959`,
+       pch = 20,
+       col = 4,
+       cex = 0.5)
+contour(fulltag, add = TRUE, levels = c(50, 95))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

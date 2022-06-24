@@ -1,0 +1,246 @@
+---
+title: "Data analysis and visualisation - Flinders Reefs intra-reef movers"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+# Created 27 May 2022 BJC
+
+Document to wrangle out data by reef for assessing intra-reef movements at Flinders Reefs, with emphasis on any deep water movements between North and South reef complexes/sub-reefs.
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(magrittr)
+library(tidyverse)
+#library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
+```
+
+# Load data - probably will be already loaded but if not:
+```{r load-data}
+#rm(list=ls())
+load(file = "../data/RData/alldata.RData")
+```
+
+
+## There are two variables (columns) that refer to a broad reef location:
+
+1. installation_name -> this is the reef on which a detection took place (run this: summary(alldata$installation_name) ) So will have some animals that were tagged outside that reef
+2. Location -> this is the actual tagging location for each animal: summary(alldata$Location)
+
+For this part of the analysis we are just interested in #2 -> animals tagged on each of the reef complexes rather than ones tagged elsewhere that made their way into the array at some point (the 'big movers' analysis covers these larger inter-reef movements)
+
+
+## Filter out just individuals tagged at Flinders Reefs
+```{r filter-movers}
+flin_movers <- alldata %>% 
+  filter(grepl("Flin", Location)) %>%  # For mapping we don't want animals tagged elsewhere
+  filter(installation_name == 'Flinders') %>% # Also don't really want the entries where Flinders animals leave
+  droplevels() # NEed to put this in to get rid of the 'ghost' levels
+```
+
+## Basic checks
+```{r filter-movers-checks}
+flin_movers %>% 
+  dplyr::select(installation_name) %>% 
+  summary()      
+
+# OR with exploded pipe
+flin_movers %$% 
+  summary(installation_name)
+```
+
+## 168507 detections at Flinders from Flinders-tagged animals.  How many tagged on each of N vs S? 
+Will need to first create a column that assigns the station_name to either one of those..
+
+```{r}
+flin_movers <- 
+flin_movers %>% 
+  arrange(station_name) %>%  # Need to arrange first so that the levels come out 1-6 (rather than the order they are encountered in the df)
+  mutate(installation_subname = case_when(grepl("F1|F2|F3", station_name) ~ 'Flinders - South',
+                                          grepl("F4|F5|F6", station_name) ~ 'Flinders - North')) 
+ 
+```
+
+## Check how many tagged in N vs S:
+```{r}
+flin_movers %>%  
+  distinct(transmitter_id, Location) %>% 
+  count(Location)
+```
+6 tagged at Flinders North and 23 at Flinders South ~ a 1:4 ratio.
+So we might expect the same ratio in terms of numbers of detections..
+
+# Can do this via installation subname totals:
+```{r}
+flin_movers %>% 
+  group_by(installation_subname) %>% 
+  count() %>% 
+  rename(No_obs = n)
+```
+So 13,857 at Flinders North and 154,650 at Flinders South, more like a 1:10 ratio. Could be interesting or it could be because N Flinders receivers are just more spread out.
+
+# What about receiver (aka station name) totals?
+```{r}
+flin_movers %>% 
+  group_by(station_name) %>% 
+  count() %>% 
+  rename(No_obs = n)
+```
+F1-3 are Flinders South
+F4-6 are Flinders North
+
+## Can also do the same thing with actuall tagging location ('Site')
+```{r}
+flin_movers %>% 
+  group_by(Site) %>% 
+  count() %>% 
+  rename(No_obs = n)
+```
+
+## Should also check the taxonomic breakdown (of course we can just look at the tagging list for this info too)
+```{r}
+flin_movers %>% 
+  distinct(Scientific_name, transmitter_id) %$% 
+  summary(Scientific_name)
+```
+7 silvertips
+22 grey reef sharks
+
+
+
+## NEXT STEPS ##
+
+What I want to achieve is a figure with connections between N and S. Can scale the curves by number of observations..
+
+Need to go through some of the same wrangling steps as for the big movers:
+
+
+# Make df with original tagging locations in (should end up with 29 rows - one per animal)
+```{r}
+flin_tag_locs <- flin_movers %>% 
+  dplyr::select(transmitter_id, Scientific_name, Location, Site, Lat, Long, Date) %>% 
+  distinct()
+flin_tag_locs
+```
+Notes:
+- All sharks tagged at either Geronimo's Wall (F1) or East North Flinders (F6). Only 6 of the latter and I don't think these move out of this area the whole time.
+
+
+
+
+# Will mutate movers to be the same stx as tag_locs and bind them together.
+```{r}
+flin_movers <- 
+  flin_movers %>% 
+  mutate(transmitter_id = transmitter_id,
+         Scientific_name = Scientific_name,
+         Location = installation_subname,
+         Site = station_name,
+         Lat = station_latitude,
+         Long = station_longitude,
+         Date = as.Date(detection_timestamp, format = "%d.%m.%Y"),
+        .keep ='none') %>% 
+  bind_rows(flin_tag_locs) %>% 
+  arrange(transmitter_id, Date)
+flin_movers
+```
+This still contains every single detection. Now need to simplify this dataset a bit..
+
+# Just one line per day observed
+This chunk basically 'compresses' the df down one level -> no repeat observations. So if anything changes (e.g. different site, same day OR same site, different day) it will keep a row here.
+```{r}
+flin_mov_sum <- flin_movers %>% 
+  distinct()
+flin_mov_sum
+```
+So now we have under 6000 observations
+
+Can't do any further slimming down of the data (like for bigmovers wrangling) as the chance of Location being the same in 2 consecutive rows is very high - the way this is dealt with in the other script means that it would chuck out lots of individuals.
+
+##Hmmm not sure this is right now...  Check the bigmove wrangling script.
+
+
+#### FINISHED HERE ####
+
+
+
+
+
+
+
+
+
+However, I think we should be able to run the from/to chunk and then filter if there's no change in lat/long..
+
+# Now need a way of having a specifying 'from' and 'to' lat longs for graphing purposes, using lag/lead in dplyr
+But if we do it on the existing df each organism's first and last observation will interfere
+# So we need to insert some blank rows to do this:
+```{r}
+flin_mov_sum <- flin_mov_sum %>% 
+  group_by(transmitter_id) %>%                    # Specify that we want the new rows to be inserted when there's a change in transmitter_id
+  group_modify(~ add_row(.x, .before=0)) #%>%     # And we'll add one extra row BEFORE each transmitter_id
+  #group_modify(~ add_row(.x, .after = Inf))      # This would do it afterwards...
+flin_mov_sum
+```
+
+
+
+
+
+
+
+# Add from vs to colums
+```{r}
+flin_mov_sum1 <- 
+flin_mov_sum %>% 
+  mutate(To_Lat = lead(Lat),
+         To_Long = lead(Long)) %>% 
+  rename(From_Lat = Lat,
+         From_Long = Long) %>% 
+  mutate(To = lead(Location), .after = Location) %>% 
+  rename(From = Location) %>% 
+  filter(!is.na(From),
+         !is.na(To))
+
+flin_mov_sum1  
+```
+
+
+## Now can mutate a new variable which will be the From_Lat minus the To_Lat. If they are the same then this new column will have a 0. Then can filter by this column having 0s.
+
+```{r}
+flin_mov_sum1 <- 
+  flin_mov_sum1 %>% 
+  mutate(Lat_check = From_Lat - To_Lat) %>% 
+  filter(Lat_check != 0) #%>% 
+  select(!Lat_check)
+```
+
+```{r}
+flin_mov_sum2 <- 
+flin_mov_sum1 %>% 
+  filter(From != To)
+```
+So it's just one GRS and one silver that move between the two sub-reefs
+

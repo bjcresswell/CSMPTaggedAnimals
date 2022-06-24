@@ -1,0 +1,171 @@
+---
+title: "Data analysis and visualisation - grey reef sharks"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+#library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
+```
+
+# Load data
+Need to run the eda Rmd to get the list of all grey reef sharks
+
+## Check 
+```{r}
+glimpse(grs_all)
+summary(grs_all$Location)
+```
+# Filter out by location
+```{r}
+# Greys tagged at Osprey Reef
+os_grs <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Common_name == 'Grey Reef')
+
+# Greys tagged at Bougainville Reef - 0
+br_grs <- alldata %>% 
+  filter(installation_name == 'Bougainville') %>% 
+  filter(Common_name == 'Grey Reef')
+
+# Greys tagged at Holmes Reef
+hr_grs <- alldata %>% 
+  filter(installation_name == 'Holmes') %>% 
+  filter(Common_name == 'Grey Reef')
+
+# Greys tagged at Flinders Reef
+fr_grs <- alldata %>% 
+  filter(installation_name == 'Flinders') %>% 
+  filter(Common_name == 'Grey Reef')
+```
+
+
+# Large scale movements - do any individuals move between entire reef sites?
+
+##  Will explore using abacus plot, faceted out by installation name (of where receiver was)
+```{r fig.height = 10, fig.width = 16}
+grs_ab_main <- 
+grs_all %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+grs_ab_main
+```
+
+## Save to get a better look
+```{r save-silver-ab}
+ggsave(filename = '../output/greys_abacus_overview.png', grs_ab_main , width = 600, height = 200, units = 'mm', dpi = 300)
+```
+
+A69-9001-60580 moved from Flinders to Holmes in late November:
+```{r}
+grs_all %>%
+  filter(transmitter_id == "A69-9001-60580") %>% 
+  ggplot(mapping = aes(x = detection_timestamp, y = site_code)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point()
+```
+
+# What about movements a smaller scale? Say between N and S Flinders or E and W Holmes? Or between Osprey wall and lagoon?
+
+## Osprey
+```{r fig.height = 10, fig.width = 16}
+os_grs %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = site_code)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+
+
+
+# Bougainville cohort
+```{r fig.height = 10, fig.width = 16}
+br_grs %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+# Holmes cohort
+```{r fig.height = 10, fig.width = 16}
+hr_grs %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = station_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+ 
+# Flinders cohort
+```{r fig.height = 10, fig.width = 16}
+fr_grs %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+
+
+
+
+
+
+
+
+

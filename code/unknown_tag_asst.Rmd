@@ -1,0 +1,113 @@
+---
+title: "Unknown tag assessment"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+This Rmd takes the combined database for the CSMP array and extracts detections of unknown tags/animals, for cross referencing against the IMOS database.
+
+Last update: 16 June 2022 BJC (included Paul Butcher animals - these will need to be added to the big-movers work)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+```
+
+
+# Load database
+```{r}
+#rm(list=ls())
+load(file = "../data/RData/alldata.RData")
+```
+
+# Create list of tags recorded over the entire study
+```{r}
+detected_tags <- alldata %>% 
+  distinct(transmitter_id) %>% 
+  arrange(transmitter_id) %>% 
+  glimpse()
+```
+#196 total tag IDs
+- We have ~112 transmitter_IDs deployed so it seems we are picking up a bunch of other animals/tags
+- Some of these are sensor tags which have 2 Vue Tag IDs each so the number of detected tags should be more
+- Some of the non-study tags may be ghosts or false readings. Need to investigate..
+
+
+
+# Next step: make a list of tags we don't recognise
+
+## First need to import list of all known tags deployed in the region
+
+```{r}
+source("regional_tag_list.R", local = knitr::knit_global())
+```
+
+```{r}
+unknown_tags <- anti_join(detected_tags, regional_tag_list) %>% 
+  separate(transmitter_id, c("Code", "Space", "ID")) %>% 
+  mutate(ID = as.numeric(ID)) %>% 
+  print()
+```
+So 68 'tags' have been recorded that are not from any of our project records
+How does this look in the data? Are there lots of observations or might a lot of these be ghosts?
+
+## Use the list of unknown tags to extract all of their observations from the main df:
+```{r}
+unknown_tag_observations <- unknown_tags %>% 
+  merge(alldata)
+```
+
+Only 157 observations, which makes sense when you cross check to how many NAs there are in the Scientific name column of the main df:
+```{r}
+sum(is.na(alldata$Scientific_name))
+```
+157
+
+
+## Export the unknown tag observations  and check in the IMOS database to see if we can ID any of them (conduct outside R)
+```{r}
+write_csv(unknown_tags, file = "../output/unknown_tags.csv")
+#write_csv(unknown_tag_observations, file = "../output/unknown_tag_observations.csv")
+```
+
+## Notes:
+Used the Mystery Tag tool in the IMOS database (https://animaltracking.aodn.org.au/tools/mysterytags)
+All unknown tags unregistered apart from: 
+A69-9001-3894 -> P. leopardus, tagged 2011 Heron Island
+A69-9001-64693 -> Paul Butcher - Tiger
+A69-9002-4128 -> Paul Butcher - White
+A69-9002-8099 -> Heterodontus portusjacksoni tagged in 2013 in NSW (3 detections)
+A69-9004-16367 -> new tag, registered but not yet deployed
+
+
+* Quick dig into our dataset to see how many detections
+```{r}
+butcher_tags <- alldata %>% 
+  filter(transmitter_id  %in%  c("A69-9001-64693", "A69-9002-4128"))
+#write_csv(x = mystery, file = '../output/mystery.csv')
+```
+
+
+
+

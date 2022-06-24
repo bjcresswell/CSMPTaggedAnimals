@@ -1,0 +1,212 @@
+---
+title: "Map  for Flinders and Holmes Reefs intra-movements"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+getwd()
+```
+
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(collapse)
+library(tidyverse)
+```
+
+# First need to specify data from which to draw Flinders and Holmes reef area data
+Only really need to do this to exclude reefs to the east from the map so you can open the figure up to the RHS and put embedded figures in
+```{r read-flinholm-data, message=FALSE, warning=FALSE}
+flinholm_reef <- 
+  readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% 
+  fortify() %>% 
+  filter(long < 150) %>% 
+  filter(lat > -18)
+```
+
+# And now can plot base map
+```{r}
+flinholm_base <- 
+  flinholm_reef %>%   
+  ggplot() +
+  geom_polygon(aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey', lwd = 0.3) +
+  coord_quickmap(ylim = c(-18, -16.35), xlim = c(147.6, 148.7)) +
+  theme(axis.title = element_blank(), 
+        #axis.text = element_blank(),
+        #axis.ticks = element_blank(),
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) 
+
+flinholm_base
+```
+
+
+
+
+## Load receiver locations
+
+```{r}
+site_list <- read_excel("../data/receiver_list_dep1.xlsx") %>% 
+  mutate_if(is.character, as.factor) %>% 
+  dplyr::select(station_name, station_name_long, station_latitude, station_longitude)
+```
+
+
+
+## Can plot labels directly on map within circles (points)
+First need to shorten labels
+```{r}
+site_list <-
+  site_list %>% 
+  mutate(station_name = str_sub(station_name, 4, -1))
+site_list
+```
+
+
+
+## Plot - points directly on receiver locations:
+```{r flinholm-sites, fig.width = 6, fig.height = 6}
+flinholm_vr2s <- 
+  flinholm_base +
+  geom_point(data = site_list, aes(x = station_longitude, y =station_latitude), colour = 'grey10', fill = 'lightskyblue', size = 8,  stroke = 0.3, shape = 21 )+
+  geom_text(data = site_list, aes(x = station_longitude, y =station_latitude, label = station_name), size = 3)
+flinholm_vr2s
+```
+
+# Or.. we can plot labels offset from actual locations. We'll need to specify these first
+```{r}
+site_list <-
+  site_list %>% 
+  mutate(label_long = case_when(
+    grepl("H1", station_name) ~ 148.5,
+    grepl("H2", station_name) ~ 148.5,
+    grepl("H3", station_name) ~ 148.5,
+    grepl("H4", station_name) ~ 148.5,
+    grepl("F1", station_name) ~ 147.8,
+    grepl("F2", station_name) ~ 147.8,
+    grepl("F3", station_name) ~ 147.8,
+    grepl("F4", station_name) ~ 147.8,
+    grepl("F5", station_name) ~ 147.8,
+    grepl("F6", station_name) ~ 147.8,
+    ),
+         label_lat = case_when(
+    grepl("H1", station_name) ~ -16.7,
+    grepl("H2", station_name) ~ -16.6,
+    grepl("H3", station_name) ~ -16.5,
+    grepl("H4", station_name) ~ -16.4,
+    grepl("F1", station_name) ~ -18.0,
+    grepl("F2", station_name) ~ -17.9,
+    grepl("F3", station_name) ~ -17.8,
+    grepl("F4", station_name) ~ -17.6,
+    grepl("F5", station_name) ~ -17.5,
+    grepl("F6", station_name) ~ -17.4))
+
+site_list
+```
+
+
+
+
+
+## Plot - points offset
+```{r flinholm-sites, fig.width = 7, fig.height = 7}
+flinholm_vr2s <- 
+  flinholm_base +
+  geom_segment(data = site_list, aes(x = station_longitude, y =station_latitude, xend = label_long, yend = label_lat), colour = 'grey') +
+  geom_point(data = site_list, aes(x = label_long, y = label_lat), colour = 'grey10', fill = 'lightskyblue', size = 8,  stroke = 0.3, shape = 21 )+
+  geom_text(data = site_list, aes(x = label_long, y = label_lat, label = station_name), size = 3) +
+  geom_polygon(data = flinholm_reef, aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey', lwd = 0.3) 
+
+flinholm_vr2s
+```
+
+
+
+## NOTES FOR MOVING THIS FORWARD (breadcrumbs!)
+
+Maybe don't need the VR2W labels at all....?
+Given that we are now focusing in on these 2 reef complexes, maybe we need to go back to alldata and extract all individuals that were tagged on these reefs and plot their tracks...  Arrows/curves aren't going to work that well though so need to think about how to visualise this nicely... Hmmmmm....
+
+
+
+
+
+## Add movement curves for the big movers
+```{r flin-holm, fig.width = 6, fig.height = 6}
+flinholm_movers <- 
+  flinholm_base + 
+   geom_curve(data = mover_sum_reef2, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
+             size = 1, angle = 90, curvature = 0.4, arrow = arrow(length = unit(0.2, "cm"), type="closed")) +
+  scale_color_viridis_d()
+flinholm_movers
+```
+
+
+## More detail
+```{r flin-holm, fig.width = 6, fig.height = 6}
+flinholm_vr2s +
+   geom_curve(data = holmes_movers, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
+             size = 1, angle = 90, curvature = 0.4, arrow = arrow(length = unit(0.3, "cm"), type="closed"))
+
+
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+ggsave()
+```
+
+

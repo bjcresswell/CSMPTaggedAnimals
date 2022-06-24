@@ -1,0 +1,23 @@
+---
+title: "ERRDAP Work"
+author: "Ben Cresswell"
+date: "07/04/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Need to check out the ERDDAP package and associated data -> useful for bringing in SST 
+
+
+
+https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1sstd1dayR201e90_Lon0360.html
+
+```{r}
+install.packages("rerddap")
+```
+

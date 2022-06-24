@@ -1,0 +1,125 @@
+---
+title: "Base map for individual reefs - Bougainville Reef"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+getwd()
+```
+
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(collapse)
+library(tidyverse)
+```
+
+# First need to specify data from which to draw Bougainville Reef area data:
+```{r read-bougainville-data, message=FALSE, warning=FALSE}
+bougainville_reef <- 
+  readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% 
+  fortify() %>% 
+  filter(long < 150) %>% 
+  filter(lat > -17)
+```
+
+# And now can plot base map
+```{r}
+bougainville_base <- 
+  bougainville_reef %>%   
+  ggplot() +
+  geom_polygon(aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey', lwd = 0.3) +
+  coord_map(orientation = c(90,0, 150), ylim = c(-15.53, -15.46), xlim = c(147.07, 147.15)) +
+  theme(axis.title = element_blank(), 
+        #axis.text = element_blank(),
+        #axis.ticks = element_blank(),
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) 
+
+bougainville_base
+```
+
+
+
+
+
+
+
+## Receiver locations
+
+```{r}
+library(readxl)
+site_list <- read_excel("../data/receiver_list_dep1.xlsx") %>% 
+  mutate_if(is.character, as.factor)
+
+site_list <- site_list %>%   
+  dplyr::select(station_name, station_name_long, station_latitude, station_longitude)
+```
+
+## If we want separate locations for labels:
+```{r}
+site_list <-
+  site_list %>% 
+  mutate(label_long = 146.52,
+         label_lat = station_latitude*1.001)
+site_list
+```
+
+## Or can plot text within circles (points)
+First need to shorten labels
+```{r}
+site_list <-
+  site_list %>% 
+  mutate(station_name = str_sub(station_name, 4, -1))
+site_list
+```
+
+
+
+## Plot
+```{r bougainville-sites}
+bougainville_vr2s <- 
+  bougainville_base +
+  geom_point(data = site_list, aes(x = station_longitude, y =station_latitude), colour = 'grey10', fill = 'lightskyblue', size = 8,  stroke = 0.3, shape = 21 )+
+  geom_text(data = site_list, aes(x = station_longitude, y =station_latitude, label = station_name), size = 3) +
+   annotate("text", x = 147.07, y = -15.46, label = "Bougainville Reef - VR2W locations", 
+           colour = "black", size = 5, fontface = 2, family = "Helvetica", hjust = 0)
+
+
+ggsave(bougainville_vr2s, filename = '../output/receivers_bougainville.png', width = 200, height = 200, units = 'mm', dpi = 400)
+
+```
+
+```{r}
+ggsave()
+```
+
+

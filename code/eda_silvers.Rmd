@@ -1,0 +1,185 @@
+---
+title: "Data analysis and visualisation - silver tip sharks"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+#library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
+```
+
+# Load data
+Need to run the eda Rmd to get the list of all sharks
+
+## Check 
+```{r}
+glimpse(silvers_all)
+summary(silvers_all$Location)
+summary(alldata$Location)
+```
+# Filter out by location
+## NOTE: Need to filter by the column "Location" as this is the original tagging location - if you filter by installation_name, you'll only get entries for that
+```{r}
+# Greys tagged at Osprey Reef
+os_silvers <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+# Greys tagged at Bougainville Reef - 0
+br_silvers <- alldata %>% 
+  filter(str_detect(Location, 'Boug')) %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+# Greys tagged at Holmes Reef
+hr_silvers <- alldata %>% 
+  filter(str_detect(Location, 'Holm')) %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+# Greys tagged at Flinders Reef
+fr_silvers <- alldata %>% 
+  filter(str_detect(Location, 'Flin')) %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+```
+
+
+# Large scale movements - do any individuals move between entire reef sites?
+
+##  Will explore using abacus plot, faceted out by installation name (of where receiver was)
+```{r fig.height = 10, fig.width = 16}
+silvers_ab_main <- 
+silvers_all %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+silvers_ab_main
+```
+
+## Save to get a better look
+```{r save-silver-ab}
+ggsave(filename = '../output/silvers_abacus_overview.png', silvers_ab_main , width = 600, height = 200, units = 'mm', dpi = 300)
+```
+
+ One individual (A69-9001-64080) moved from Holmes to Flinders to Osprey and then out of array:
+```{r}
+silvers_all %>%
+  filter(transmitter_id == "A69-9001-64080") %>% 
+  ggplot(mapping = aes(x = detection_timestamp, y = site_code)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point()
+```
+Should also show up in the Holmes filtered data (assuming tagged there)
+
+
+# What about movements a smaller scale? Say between N and S Flinders or E and W Holmes? Or between Osprey wall and lagoon?
+
+## Osprey - only 1 individual tagged here
+```{r fig.height = 6, fig.width = 10}
+#os_silver_ab <- 
+  os_silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = site_code)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+## INTERESTING: the one silvertip shark tagged at Osprey appeared to stay in the lagoon for the entire winter period!
+
+
+```{r}
+ggsave(os_silver_ab, filename = "../output/os_silver_abacus.jpg", width = 200, height = 200, units = 'mm', dpi = 400)
+```
+
+
+
+# Bougainville cohort
+```{r fig.height = 10, fig.width = 16}
+br_silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+## 2 individuals - seem very resident
+
+
+
+# Holmes cohort - 3 individuals, 2 sticking to their E vs W reefs and one moving around a fair bit
+```{r fig.height = 10, fig.width = 16}
+hr_silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = station_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+ 
+# Flinders cohort
+```{r fig.height = 10, fig.width = 16}
+fr_silvers %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = station_name)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+
+
+
+
+
+
+
+
+

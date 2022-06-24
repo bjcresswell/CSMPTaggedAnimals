@@ -1,0 +1,205 @@
+---
+title: "Analysing residency indices"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+```
+
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(collapse)
+library(tidyverse)
+```
+
+
+
+# Residency index
+
+The residency index is the number of days an animal was detected within the receiver array (site residency) or tagging reef (reef residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
+
+
+
+Prob need to start with alldata and wrangle out # of days at large vs detected...
+
+The column 'Date' in alldata is the date the animal was tagged
+Then there are 2 dates for receiver retrieval and we are going to want to figure out days at large from the later one of these..
+
+
+```{r}
+glimpse(alldata)
+```
+
+
+
+
+
+
+
+
+
+```{r}
+alldata %>% 
+  mutate(receiver_days = as.double(recoverydatetime_timestamp - deploymentdatetime_timestamp))
+```
+
+
+
+# Site residency - days spent at each site
+```{r}
+site_days <- alldata %>% 
+  mutate(detection_date = as.Date(detection_timestamp)) %>%                     # Turn time stamp into date
+  select(transmitter_id, detection_date, site_code, installation_name)# %>%      # Variables required
+  select(!detection_date) %>% 
+  #distinct() # %>% 
+  group_by(transmitter_id, site_code) %>% 
+  mutate(summarise(n = n()))
+
+           
+           
+           
+           
+           
+           
+match(detection_date, sort(unique(detection_date))))
+           
+```
+
+# Reef residency - days spent at each reef
+```{r}
+reef_days <- alldata %>% 
+  mutate(detection_date = as.Date(detection_timestamp)) %>% 
+  select(transmitter_id, detection_date, site_code, installation_name) %>% 
+  group_by(transmitter_id, installation_name) %>% 
+  mutate(reef_days = match(detection_date, sort(unique(detection_date)))) %>% 
+  select(!c(detection_date, site_code)) %>% 
+  distinct()
+
+summary(reef_days$installation_name)
+```
+
+So now we have summaries of how many days these organisms were detected at both individual sites as well as reefs
+Now we need to know how many days each organism was at large during the study period: the date of removal of the VR2W minus the date the animal was tagged.
+
+
+
+
+```{r}
+
+site_residence <- receivers %>% 
+  select(site_code, rcvr_enddate) %>% 
+  merge(site_days, by = 'site_code')
+  
+  
+  
+reef_residence <- receivers %>%   
+  select(installation_name, rcvr_enddate) %>% 
+  merge(reef_days, by = 'installation_name')
+
+
+
+```
+
+
+
+
+
+
+
+# Load receiver metadata again
+```{r}
+# Deployment 1
+vr2ws_dep1 <- read_excel('../data/receiver_list_dep1.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate_if(is.character, as.factor) # Sort out variables
+
+# Deployment 2
+vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate_if(is.character, as.factor) # Sort out variables
+```
+
+## Combine 
+```{r}
+receivers <- vr2ws_dep1 %>% 
+  bind_rows(vr2ws_dep2) %>% 
+  mutate(rcvr_enddate = ymd(recoverydatetime_timestamp)) %>%
+  group_by(installation_name, site_code) %>% 
+  filter(rcvr_enddate == max(rcvr_enddate))
+
+```
+
+
+
+
+```{r}
+
+
+receiver_days <- alldata %>% 
+    mutate(receiver_days = as.double(recoverydatetime_timestamp - deploymentdatetime_timestamp)) %>% 
+  select(receiver_name, site_code, installation_name, receiver_days) %>% 
+  distinct()
+  
+  
+  
+  
+  group_by(installation_name, site_code) %>% 
+  summarise(receiver_days = sum(receiver_days))
+receiver_days
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

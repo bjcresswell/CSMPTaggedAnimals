@@ -1,0 +1,187 @@
+---
+title: "Transmitter main data import and wrangling"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+This Rmd takes detection data from a/many Vue database(s), previously exported to csv format, combines this with tag and receiver metadata and wrangles together into one main dataframe - alldata
+
+# PRELIMINARIES #
+
+# Set up Rmd
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#rm(list=ls())
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(writexl)
+library(readxl)
+library(lubridate)
+library(magrittr)
+library(tidyverse)
+```
+
+
+# INITIAL WRANGLING #
+
+Offloading detection data from receivers to Vue results in a .Vdb file in Vue which can then be exported as a .csv file 
+Each deployment period is thus one chunk of data which needs to be joined with other deployments if you want to get a long term dataset
+However each detection file typically only contains receiver serial numbers - details of what receiver was located at what site are contained in a separate csv file
+Therefore the first thing to do is load up each deployment file along with its corresponding receiver metadata individually and combine together (Step 1)
+Also need to combine with tag metadata (Step 2 below) which contains data on species, size, where/when tagged/releaased etc 
+Can do this after combining deployments together as the tag metadata is the same for all deployments
+Lastly, if you want to utilise the Animal Tracking Toolbox component of the vTrack package you need to wrangle the alldata file AND the metadata into the correct format (see separate Rmd)
+
+
+
+# STEP 1: Loading base detection data and combining with receiver metadata
+
+## Deployment 1 (Feb - Oct 2021)
+
+## Load detection database
+```{r load-dep1}
+data_dep1 <- read.csv('../data/CSMPdb_uncal_202110.csv') %>% 
+  tibble() %>% # Make into tibble format
+  mutate(detection_timestamp=as_datetime(DTG), .keep='unused', .before='Receiver') %>%  # Sort out date-time column early
+  dplyr::select(c(1,2,3,6,7)) %>% # Get rid of unrequired columns
+  mutate_if(is.character, as.factor) %>% # Sort out variables
+  mutate(receiver_name = Receiver, # Change some column names for merging below
+         transmitter_id = Tag_ID,
+         .keep = 'unused')
+```
+
+## And the list of receivers for this deployment
+```{r}
+vr2ws_dep1 <- read_excel('../data/receiver_list_dep1.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate_if(is.character, as.factor) # Sort out variables
+```
+
+## Combine
+```{r}
+data_dep1 <- data_dep1 %>% 
+  merge(vr2ws_dep1, by='receiver_name')
+```
+
+
+
+## Deployment 2 (Oct 2021 - Feb 2022)
+
+## Load detection database
+```{r load-dep2}
+data_dep2 <- read.csv('../data/CSMPdb_uncal_202203.csv') %>% 
+  tibble() %>% # Make into tibble format
+  mutate(detection_timestamp=as_datetime(DTG), .keep='unused', .before='Receiver') %>%  # Sort out date-time column early
+  dplyr::select(c(1,2,3,6,7)) %>% # Get rid of unused columns
+  mutate_if(is.character, as.factor) %>% # Sort out variables
+  mutate(receiver_name = Receiver, # Change some column names for merging below
+         transmitter_id = Tag_ID,
+         .keep = 'unused')
+
+```
+
+## List of receivers for deployment 2
+```{r}
+# Load list of receivers
+vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate_if(is.character, as.factor) # Sort out variables
+```
+
+## Combine
+```{r}
+data_dep2 <- data_dep2 %>%  
+  merge(vr2ws_dep2, by='receiver_name')
+```
+
+## Quick check to make sure everything looking ok
+```{r}
+glimpse(data_dep1)
+glimpse(data_dep2)
+```
+
+Both have the same columns so..
+
+## Combine into master df
+```{r}
+alldata <- rbind(data_dep1, data_dep2)
+summary(alldata)
+```
+Looking good - nearly 1.3million detections over the year period.
+Now we have a whole data file, we can combine with information about tagged animal details (for animals that we have info for)
+
+
+
+# STEP 2:  Animal/tag information
+
+At this stage we will only be able to figure out the identities of animals we've tagged in this study (or in Adam's other work in region)
+Others will be identifiable through the IMOS database later on.
+
+## Load the list of known tags deployed in QLD/GBR/CSMP region
+The following chunk runs a separate script to import files relating to both sharks and teleosts tagged in the regions (From Adam's master list) and combines to make one database of tagged animals ("regional_tag_list):
+```{r warning=FALSE}
+source("regional_tag_list.R", local = knitr::knit_global())
+rm("regional_shark_list", "regional_teleost_list") # Remove the individual shark and teleost lists as we don't need them separately (for now)
+```
+
+## Check
+```{r}
+glimpse(regional_tag_list)
+```
+
+Nearly 600 animals tagged in this list and a variety of taxa. Some of these will appear in the CSMP database and obviously others will not. We can extract the animal information from this dataframe (e.g. spp, date tagged etc) to add to our master database. 
+
+## From this list we'll extract all the known regional tags that are in our detection database
+```{r}
+raw_detected_tags <- alldata %>% 
+  distinct(transmitter_id) %>% 
+  merge(regional_tag_list) %>% 
+  droplevels()
+
+
+raw_detected_tags %$%
+  summary(Location)
+```
+
+## Save as RData
+```{r}
+#save(raw_detected_tags, file = "../data/RData/raw_detected_tags.RData")
+```
+
+
+
+## Combine animal info into main df
+```{r}
+alldata <- alldata %>% 
+  merge(regional_tag_list, by='transmitter_id', all.x = TRUE) %>% 
+  droplevels()
+glimpse(alldata)
+
+alldata %>% 
+  group_by(transmitter_id, Location) %>% 
+  distinct() %$% 
+  summary(Location)
+str(alldata$transmitter_id)
+```
+
+## And save for use elsewhere
+```{r}
+#save(alldata, file = "../data/RData/alldata.RData")
+as.tibble(colnames(alldata))
+```
