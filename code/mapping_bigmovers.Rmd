@@ -173,7 +173,7 @@ bigmov_map
 
 
 ```{r}
-ggsave(bigmov_map, filename = '../output/movement_mapV2.png', width = 200, height = 200, units = 'mm', dpi = 400)
+#ggsave(bigmov_map, filename = '../output/movement_mapV2.png', width = 200, height = 200, units = 'mm', dpi = 400)
 ```
 
 
