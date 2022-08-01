@@ -97,7 +97,7 @@ load(file = "../data/RData/alldata.RData")
 ```{r}
 detected_tag_list <- alldata %>% 
   distinct(transmitter_id) %>% 
-  merge(regional_tag_list, all.x = TRUE) # Need to keep all the unkowns in so all.x = TRUE. Heaps of NAs in this df because of this
+  merge(regional_tag_list, all.x = TRUE) # Need to keep all the unknowns in so all.x = TRUE. Heaps of NAs in this df because of this
 ```
 
 So, just looking at the number of observations in these 3 dataframes we can figure out how many tags involved wth each (note some of these will be duplicated animal due to dual sensor IDs)
@@ -158,7 +158,12 @@ non_csmp_sharks <- csmp_sharks[20] %>%
   anti_join(regional_shark_list)
 ```
 
-
+# A check to see how many GRS tagged on Osprey
+```{r}
+project_tag_list %>% 
+  filter(Location == 'Osprey',
+         Org_type == 'Elasmobranch')
+```
 
 
 

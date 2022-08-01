@@ -185,3 +185,18 @@ str(alldata$transmitter_id)
 #save(alldata, file = "../data/RData/alldata.RData")
 as.tibble(colnames(alldata))
 ```
+
+
+```{r}
+data_dep1 %>% 
+  select(transmitter_id, station_name) %>% 
+  unique()
+
+
+  filter(transmitter_id == "A69-9007-6256")
+
+
+```
+
+
+

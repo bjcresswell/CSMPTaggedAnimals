@@ -21,7 +21,6 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-#rm(list=ls())
 ```
 
 
@@ -36,6 +35,7 @@ library(ggmap)    # for fortifying shapefiles
 library(readxl)
 library(scatterpie)
 library(collapse)
+library(magrittr)
 library(tidyverse)
 ```
 
@@ -43,7 +43,7 @@ library(tidyverse)
 
 # Residency index
 
-The residency index is the number of days an animal was detected within the receiver array (site residency) or tagging reef (reef residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
+The residency index is the number of days an animal was detected at each receiver (site or station residency) or reef (reef or installation residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
 
 
 
@@ -52,23 +52,102 @@ Prob need to start with alldata and wrangle out # of days at large vs detected..
 The column 'Date' in alldata is the date the animal was tagged
 Then there are 2 dates for receiver retrieval and we are going to want to figure out days at large from the later one of these..
 
+# Load data - probably will be already loaded but if not:
+```{r load-data}
+#rm(list=ls())
+load(file = "../data/RData/alldata.RData")
+```
 
+# Check
 ```{r}
 glimpse(alldata)
 ```
 
+Residence index will need to be calculated for each individual organism at station and installation level (i.e. per receiver and per reef)
 
-
-
-
-
-
-
+Let's start with GRS on Osprey...
 
 ```{r}
-alldata %>% 
-  mutate(receiver_days = as.double(recoverydatetime_timestamp - deploymentdatetime_timestamp))
+os_grs <- alldata %>% 
+  filter(Location == 'Osprey') %>% 
+  filter(Common_name == 'Grey Reef')
 ```
+
+# 'Date' in this df is the tagging date and we need to change it to class date (could maybe change this earlier on in wrangling process)
+```{r}
+os_grs <- 
+  os_grs %>% 
+  mutate(tag_date = as.Date(Date), .keep = 'unused')
+```
+
+
+Now we'll need to summarise this df so that we have one line per individual which will give us:
+- Number of days detected over the study period
+- Number of days at large (from tagging to receiver retrieval)
+
+## Will start by calculating end date for deployment.
+If(when) we do this at individual station level, we can use the exact recovery date for that receiver but for the whole installation we'll just go with the earliest receiver removal.
+
+## Reload details for the 2nd VR2W deployment (i.e. the latest one)
+```{r}
+osprey_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate_if(is.character, as.factor) %>%  # Sort out variables
+  filter(installation_name == 'Osprey')
+```
+
+## And check when receivers removed
+```{r}
+osprey_dep2 %$% 
+  summary(recoverydatetime_timestamp)
+```
+All receivers recovered between 3 and 4 March 2022. So will roll with 3rd march as deployment end date
+
+
+## Now need to calculate # days detected and # days in deployment
+```{r}
+os_grs_days <- 
+  os_grs %>% 
+  mutate(detection_date = as.Date(detection_timestamp)) %>% 
+  dplyr::select(transmitter_id, tag_date, detection_date) %>% 
+  distinct() %>% 
+  group_by(transmitter_id, tag_date) %>% 
+  mutate(detected_days = n()) %>% 
+  dplyr::select(!detection_date) %>% 
+  distinct() %>% 
+  mutate(deployment_end = date('2022-03-03')) %>% 
+  mutate(deployment_days = as.integer(deployment_end - tag_date))
+```
+So 51 organisms. If you check the tag asst scripts there are 52 animals tagged but I think we had one disappear instantly.. Need to check.
+
+
+# Now can calculate Ri 
+```{r}
+os_grs_days <- 
+  os_grs_days %>% 
+  mutate(Ri = detected_days/deployment_days)
+```
+
+
+# Plots
+```{r}
+os_grs_days %>% 
+  ggplot() +
+  geom_boxplot(y = 'Ri', x = 'tag_date')
+
+
+
+```
+
+
+
+
+
+
+
+
+
+#####  OLDER WORK  ######
 
 
 
