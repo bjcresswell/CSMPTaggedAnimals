@@ -2,7 +2,11 @@
 
 ## This script is designed to be called on from the main wrangling Ri Rmd
 
+rm(list=ls())
 setwd('code')
+load(file = "../data/RData/alldata.RData")
+
+
 
 # Select only variables and organisms required for this analysis
 ri_df <- alldata %>%
@@ -61,17 +65,65 @@ station_ri <-
 
 
 # Calculate days at large by installation
-installation_ri <- station_ri %>% 
-  group_by(installation_name, transmitter_id) %>% 
-  mutate(detectiondays_installation = sum(detectiondays_station)) %>%
+installation_ri <- ri_df %>% 
+  dplyr::select(!c(station_name, station_name_long)) %>% 
   group_by(installation_name) %>% 
   mutate(recovery_date = min(recovery_date)) %>% 
-  dplyr::select(!c(station_name, station_name_long, ri_station,
-                   detectiondays_station, deploymentdays_station)) %>%   # Remove all the station-level info
+  group_by(installation_name, transmitter_id) %>% 
+  distinct() %>% 
+  mutate(detectiondays_installation = n()) %>% 
+  dplyr::select(!c(detection_date)) %>% 
   distinct() %>% 
   mutate(deploymentdays_installation = as.integer(recovery_date - tag_date),
-         ri_installation = detectiondays_installation/deploymentdays_installation)
-
+         ri_installation = detectiondays_installation/deploymentdays_installation) %>% 
+  mutate(ri_installation = case_when(ri_installation > 1 ~ 1,
+                                     TRUE ~ ri_installation))
   
+
 save(station_ri, file = "../data/RData/station_ri.RData")
 save(installation_ri, file = "../data/RData/installation_ri.RData")
+
+
+
+# Split up into relevant groups.
+
+# 1. Taxa
+
+## Grey reef sharks
+ri_greys <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Carcharhinus amblyrhynchos')
+
+## Silver tips
+ri_silvers <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+## GTs
+ri_gts <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Caranx ignobilis')
+
+## Lugubris
+ri_lugub <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Caranx lugubris')
+
+## Trout
+ri_trout <- 
+  installation_ri %>% 
+  filter(grepl('laev', Scientific_name))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
