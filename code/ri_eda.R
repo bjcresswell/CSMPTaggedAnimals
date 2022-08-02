@@ -6,9 +6,6 @@ rm(list=ls())
 load(file = "../data/RData/station_ri.RData")
 load(file = "../data/RData/installation_ri.RData")
 
-ri_ambly <- 
-installation_ri %>% 
-  filter(Scientific_name == 'Carcharhinus amblyrhynchos')
 
 # Boxplots
 

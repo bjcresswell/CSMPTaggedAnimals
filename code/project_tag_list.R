@@ -2,16 +2,13 @@
 
 # This script loads our list of animals tagged for the CSMP project -> 2 separate dfs, one for teleosts and one for sharks
 # Then pairs up the IDs with the metadata from the regional_tag_list (contains lats/longs etc)
+## This script is designed to be called on from external Rmd files
+## If you want to run from within this script:
+## setwd("code")
 
-
-# Set wd
-setwd("../code")
-
-# Or if you want to run from within this script:
-#setwd("code")
-
-getwd()
+#getwd()
 #rm(list=ls())
+setwd("../code")
 
 
 # Packages
@@ -48,7 +45,7 @@ project_tag_list <- project_serials %>%
 project_sharks <- project_tag_list %>% 
   filter(Org_type == 'Elasmobranch') %>% 
   distinct(transmitter_id)
-write.csv(project_sharks, file = '../data/RData/project_sharks.csv')
+#write.csv(project_sharks, file = '../data/RData/project_sharks.csv')
 
 # List of project teleosts
 project_teleosts <- project_tag_list %>% 

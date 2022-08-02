@@ -46,15 +46,9 @@ library(tidyverse)
 The residency index is the number of days an animal was detected at each receiver (site or station residency) or reef (reef or installation residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
 
 
-
-Prob need to start with alldata and wrangle out # of days at large vs detected...
-
-The column 'Date' in alldata is the date the animal was tagged
-Then there are 2 dates for receiver retrieval and we are going to want to figure out days at large from the later one of these..
-
 # Load data - probably will be already loaded but if not:
 ```{r load-data}
-#rm(list=ls())
+rm(list=ls())
 load(file = "../data/RData/alldata.RData")
 ```
 
@@ -155,7 +149,7 @@ os_grs_days %>%
 ```{r}
 site_days <- alldata %>% 
   mutate(detection_date = as.Date(detection_timestamp)) %>%                     # Turn time stamp into date
-  select(transmitter_id, detection_date, site_code, installation_name)# %>%      # Variables required
+  dplyr::select(transmitter_id, detection_date, site_code, installation_name)# %>%      # Variables required
   select(!detection_date) %>% 
   #distinct() # %>% 
   group_by(transmitter_id, site_code) %>% 
@@ -175,10 +169,10 @@ match(detection_date, sort(unique(detection_date))))
 ```{r}
 reef_days <- alldata %>% 
   mutate(detection_date = as.Date(detection_timestamp)) %>% 
-  select(transmitter_id, detection_date, site_code, installation_name) %>% 
+  dplyr::select(transmitter_id, detection_date, site_code, installation_name) %>% 
   group_by(transmitter_id, installation_name) %>% 
   mutate(reef_days = match(detection_date, sort(unique(detection_date)))) %>% 
-  select(!c(detection_date, site_code)) %>% 
+  dplyr::select(!c(detection_date, site_code)) %>% 
   distinct()
 
 summary(reef_days$installation_name)

@@ -36,7 +36,7 @@ library(tidyverse)
 
 # Read in data
 
-## 1. List of tags across wider region
+## 1. List of tags from across wider region
 Sourced from another R script regional_tag_list.R
 ```{r load-reg-tags, message=FALSE, warning=FALSE}
 #rm(list=ls())
@@ -50,42 +50,7 @@ Sourced from another R script project_tag_list.R
 source("../code/project_tag_list.R")
 ```
 
-
-## 
-```{r load-tagged-animals2}
-project_tag_list <- project_serials %>% 
-  merge(regional_tag_list, by = 'ID') # Adds in other variables we might need
-```
-
-
-
-
-
-
-
-
-
-## OR
-```{r load-tagged-animals2}
-project_tag_list <- read_excel("../data/csmp_sharks.xlsx", trim_ws = TRUE)# %>% 
-  dplyr::select(!c(6,7,8)) %>% 
-  rbind(read_excel("../data/csmp_teleosts.xlsx", trim_ws = TRUE) %>% 
-  dplyr::select(c(1,2,3,4,5,9,10)))# %>% 
-  mutate_if(is.character, as.factor) %>%  # Sorts out variables
-  merge(regional_tag_list, by = 'ID') # Adds in other variables we might need
-```
-
-
-## Check
-```{r}
-#summary(csmp_animals$Scientific_name)
-#summary(csmp_animals$Species)
-#summary(csmp_animals$Location)
-```
-
-
 ## 3. List of detected tags
-
 First load detection data
 ```{r}
 load(file = "../data/RData/alldata.RData")
@@ -106,19 +71,18 @@ So, just looking at the number of observations in these 3 dataframes we can figu
 2. Project tags:  137 tag IDs
 3. Detected tags: 196 tag IDs
 
-
-# Now we have our first 3 lists of tags, we can figure out the remaining two - unknown tags and missing tags
+We have more detected tags than project tags. Some of these are likely from the regional tag group and some will be ghost detections. There may also be animals that we tagged that immediately disappeared from the array. We can check all of this using these first 3 lists of tags, producing two further lists - unknown tags and missing tags.
 
 
 ## 4. Unknown tags
-
+These will be ones that we don't have information for, even in the regional tag list:
 ```{r}
 unknown_tag_list <- anti_join(detected_tag_list, regional_tag_list, by = 'transmitter_id') %>% # This function produces a list of unique 
   print()
 ```
 
 So 68 transmitter IDs have been detected that are not from any of our records
-## Check out separate R script (unknown_tag_asst.Rmd) to export a list that can be used to check these IDs in the IMOS Mystery Tag Tool and Transmitter databases
+## This is handled in a separate R script (unknown_tag_asst.Rmd) which exports a list that can be used to check these IDs in the IMOS Mystery Tag Tool and Transmitter databases
 
 
 ## 5. Missing tags
@@ -136,14 +100,15 @@ Only 125 of the 137 deployed transmitter IDs - there's 12 missing. Let's figure 
 ## Which ones not detected
 ```{r}
 missing_tag_list <- project_tag_list %>% 
-  anti_join(project_detection_list, by = 'transmitter_id') #%>% 
+  anti_join(project_detection_list, by = 'transmitter_id') %>% 
+  print
 ```
 This list contains 12 transmitter_ids, however this doesn't equate to separate animals as some of them are dual sensor (T/P) tags
 
-# Actually animals missing
+# Actual animals missing
 ```{r}
 missing_animal_list <- missing_tag_list %>% 
-  group_by(Date.x, Scientific_name.x, Location.x, Site.x, Model) %>% 
+  group_by(Date, Scientific_name, Location, Site, Model) %>% 
   distinct(Serial)
 
 print(missing_animal_list)
@@ -151,6 +116,25 @@ print(missing_animal_list)
 
 3 GTs with T/Ps missing from this list - one tagged in October (genuinely missing) and 2 tagged in March 2022 (haven't had a chance to be detected yet)
 6 sharks missing (5 silvers and 1 grey)
+
+
+# Actual animals should there have been?
+```{r}
+project_animal_list <- project_tag_list %>% 
+  group_by(Date, Scientific_name, Location, Site, Model) %>% 
+  distinct(Serial)
+
+print(project_animal_list)
+```
+
+
+
+
+
+
+
+
+
 
 
 ```{r}
