@@ -128,6 +128,11 @@ print(project_animal_list)
 ```
 
 
+# Teleosts
+```{r}
+project_teleosts %>% 
+  filter(Type != "press")
+```
 
 
 
