@@ -1,0 +1,181 @@
+---
+title: "Analysing residency indices - Sharks"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "../output";
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, 'Ri_shark_analysis.html')) })
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Packages
+library(knitr)
+library(kableExtra)
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(plotrix)   # Calculates SE
+library(collapse)
+library(magrittr)
+library(tidyverse)
+```
+
+```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Housekeeping
+#rm(list=ls())
+#getwd()
+```
+
+
+# Residency index
+
+This doc contains Ri analyses for sharks, following email discussion 7 Aug 2022:
+
+- Sharks #1: Ri for each species for each reef - covered in this doc/script
+- Sharks #2: large-scale movement map (separate doc/script)  
+- Sharks #3: blue-water movements within Holmes and Flinders movement (separate doc/script)  
+  
+
+The residency index is the number of days an animal was detected at each receiver (site or station residency) or reef (reef or installation residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
+
+
+
+# Data load and wrangling
+
+Data wrangling and station/installation Ri calculations conducted in separate scripts
+```{r load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+source("ri_installation.R")
+```
+
+
+# Split up into taxa groups {.tabset .tabset-faded}
+
+## Grey reef sharks  
+- Dataframe preview:  
+
+```{r greys-ri, echo=FALSE, message=FALSE, warning=FALSE}
+ri_greys <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Carcharhinus amblyrhynchos')
+
+ri_greys %>% 
+  head() %>% 
+  kbl() %>%
+  kable_minimal()
+```
+
+
+## Silver tips  
+- Dataframe preview:  
+
+```{r silvers-ri, echo=FALSE, message=FALSE, warning=FALSE}
+ri_silvers <- 
+  installation_ri %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+
+ri_silvers %>% 
+  head() %>% 
+  kbl() %>%
+  kable_minimal()
+```
+
+
+# Summary stats 
+  
+- For both taxa, mean Ri (± S.E.) are presented by reef and sex:  
+
+## C. amblyrhynchos {.tabset .tabset-faded}
+###  Reef (installation)
+```{r grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#grs_installation_stats <- 
+  ri_greys %>% 
+  group_by(installation_name) %>% 
+  summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
+  print() %>% 
+  ggplot(aes(x = installation_name, y = mean)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri (mean ± SE)", x = "Installation (reef)")
+
+```
+
+### Sex
+```{r grs-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#grs_sex_stats <- 
+  ri_greys %>% 
+  group_by(Sex) %>% 
+  summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
+  print() %>% 
+  ggplot(aes(x = Sex, y = mean)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri (mean ± SE)", x = "Sex")
+```
+
+## C. albimarginatus {.tabset .tabset-faded}
+###  Reef (installation)
+```{r silvers-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#silvers_installation_stats <- 
+  ri_silvers %>% 
+  group_by(installation_name) %>% 
+  summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
+  print() %>% 
+  ggplot(aes(x = installation_name, y = mean)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri (mean ± SE)", x = "Installation (reef)")
+```
+
+
+### Sex
+```{r silvers-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#silvers_sex_stats <- 
+  ri_silvers %>% 
+  group_by(Sex) %>% 
+  summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
+  print() %>% 
+  ggplot(aes(x = Sex, y = mean)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri (mean ± SE)", x = "Sex")
+```
+
+
+# Observations
+  
+- Grey reef sharks more uniformly resident across reefs and also between sexes, with highest residency at Osprey Reef and in females
+- Silver tip sharks pretty much show the opposite pattern: much more variable residency, with LOWEST residency at Osprey Reef and in famales
+
+
+
+
+
+
+

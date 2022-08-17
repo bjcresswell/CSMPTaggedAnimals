@@ -1,11 +1,13 @@
-## Wrangling Ri ##
+##  Residency index - installation ##
 
-## This script is designed to be called on from the main wrangling Ri Rmd
-## If you want to run from within this script:
+
+## This script wrangles out residency indices (Ri) for each individual per location.  Ri here is calculated at the installation level (rather than individual station)
+## Mainly going to be interesting for the shark data, but teleost values are retained also
+## This script is designed to be called on from the main Ri Rmd document. It you want to run code here, from within this script you need to run this first:
 ## setwd("code")
 
-#getwd()
-rm(list=ls())
+getwd()
+#rm(list=ls())
 #setwd('../code')
 
 # Load main data file
@@ -14,30 +16,35 @@ load(file = "../data/RData/alldata.RData")
 # And for other required data, run the project_tag_list script:
 source("../code/project_tag_list.R")
 
-
-
 # Select only variables and organisms required for this analysis
-ri_df <- alldata %>%
+installation_ri <-
+  alldata %>%
   filter(Org_type != 'NA') %>%                        # We don't want the random detections included in this analysis
   filter(Scientific_name !='Galeocerdo cuvier') %>%   # Also don't want the visitors from outside the array included in this analysis
   droplevels() %>% 
   dplyr::select(transmitter_id, 
                 #receiver_name,                                                       # VR2W serial # - don't want this in
                 detection_timestamp,                                                  # 
-                installation_name, station_name, station_name_long,                   # Variables relating to detecting receiver
-                #deploymentdatetime_timestamp, recoverydatetime_timestamp,            # Will add in deployment dates later (for whole proj, not individual deps)
+                installation_name, station_name, station_name_long,                   # Variables relating to detecting receiver -> need to leave station info in for now to pair up with retrievals
+                #deploymentdatetime_timestamp, recoverydatetime_timestamp,            # Will add in deployment dates later (accurate ones which we'll apply to whole proj, not individual deps)
                 Common_name, Scientific_name, Date, 
-                Location, Site, Sex, Org_type) %>%                                    # Leave in the orrganism and tagging info
+                Location, Site, Sex, Org_type) %>%                                    # Leave in the organism and tagging info
   mutate(tag_date = as.Date(Date), 
          detection_date = as.Date(detection_timestamp),                               # One row/observation for every day the organism detected in array
-         tag_loc = Location, 
-         tag_site = Site, 
+         tag_subinstallation = Location, 
+         tag_station = Site, 
          .keep = 'unused') %>% 
+  mutate(tag_installation = case_when(grepl("Boug", tag_subinstallation) ~ "Bougainville",  # Need a variable that records the tagging installation name
+                                      grepl("Flin", tag_subinstallation) ~ "Flinders",
+                                      grepl("Holm", tag_subinstallation) ~ "Holmes",
+                                      grepl("Ospr", tag_subinstallation) ~ "Osprey")) %>% 
   distinct()
 
-head(ri_df)
+head(installation_ri)
 
-## The above df provides raw data to determine number of days detected  (each row is one day)
+
+
+## The above df provides raw data to determine number of days detected  (each row is one day) -> we want to summarise this to counts per individual per installation
 ## Also provides info about beginning of the deployment (starts the date the animal was tagged.)
 ## The end of the deployment is when the receiver(s) were retrieved from the water
 ## The number of days between those two dates is the "days at large" value for the organism
@@ -52,31 +59,20 @@ vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
 glimpse(vr2ws_dep2)
 
 ## Merge in just the retrieval dates to the main df
-ri_df <- ri_df %>% 
+installation_ri <- 
+  installation_ri %>% 
   merge(vr2ws_dep2[c(4,10)], by='station_name') %>% 
   arrange(transmitter_id)
 
 ## Check
-head(ri_df)
+head(installation_ri)
 
-
-# Calculate days at large by station
-station_ri <-
-  ri_df %>% 
-  group_by(station_name, transmitter_id, tag_date) %>% 
-  mutate(detectiondays_station = n()) %>% 
-  #ungroup() %>% 
-  dplyr::select(!c(detection_date)) %>% 
-  distinct() %>% 
-  mutate(deploymentdays_station = as.integer(recovery_date - tag_date),
-         ri_station = detectiondays_station/deploymentdays_station)
-## Not going to progress this any further unless required.
-
-# Calculate days at large by installation
-installation_ri <- ri_df %>% 
+# Calculate days at large and Ri by installation
+installation_ri <- 
+  installation_ri %>% 
   dplyr::select(!c(station_name, station_name_long)) %>% 
   group_by(installation_name) %>% 
-  mutate(recovery_date = min(recovery_date)) %>% 
+  mutate(recovery_date = min(recovery_date)) %>%                                            # Applies the earliest recovery date to all receivers
   group_by(installation_name, transmitter_id) %>% 
   distinct() %>% 
   mutate(detectiondays_installation = n()) %>% 
@@ -84,19 +80,26 @@ installation_ri <- ri_df %>%
   distinct() %>% 
   mutate(deploymentdays_installation = as.integer(recovery_date - tag_date),
          ri_installation = detectiondays_installation/deploymentdays_installation) %>% 
-  mutate(ri_installation = case_when(ri_installation > 1 ~ 1,
+  mutate(ri_installation = case_when(ri_installation > 1 ~ 1,                               # Some individuals have Ri>1 (impossible), caused by the rounding down of recovery date above
                                      TRUE ~ ri_installation))
 
-# There is some duplication in here as T/P organisms will be counted twice
-# So need to deal with this but before we do, we should check missing IDs against project tag list
+# So each installation has an Ri value per individual organism. 
+#Note that there will be some duplication of transmitter IDs as a few organisms went between installations, so these have more than one Ri assigned to them:
+installation_ri %$% 
+  summary(duplicated(transmitter_id))
+
+
+# Next, we should check missing IDs against project tag list
 missing_from_ri <- 
   project_tag_list %>% 
   anti_join(installation_ri, by = "transmitter_id")
 ## 12 transmitter_IDs (9 actual animals) missing - same as identified by tag_asst.Rmd so we already knew about these (see that Rmd for more info)
 
-# First need to pull out the T/P entries into a separate df:
 
-tp_ri <-                                                   # Extract just the T/P tags from the main df
+# Now we need to deal with duplicate serials, as T/P tagged organisms will have tags counted twice
+
+# First need to pull out the T/P entries into a separate df:
+sensor_installation_ri <-                                                   # Extract just the T/P tags from the main df
 project_tag_list %>%                                       # Need to get the serial number and tag info
   dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tag_list
   merge(installation_ri, by = 'transmitter_id') %>%        # and merge 
@@ -107,7 +110,7 @@ project_tag_list %>%                                       # Need to get the ser
 
 # And need to do the reverse on installation_ri:
 
-installation_ri <- 
+nonsensor_installation_ri <- 
   project_tag_list %>%                                       # Need to get the serial number and tag info
   dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tag_list
   merge(installation_ri, by = 'transmitter_id') %>%        # and merge 
@@ -116,54 +119,16 @@ installation_ri <-
 # And then combine back together
 ## Original installation_ri was 128 obs. Minus 44 + 22 = 106 obs
 
-installation_ri <- installation_ri %>% 
-  bind_rows(tp_ri)
+installation_ri <- nonsensor_installation_ri %>% 
+  bind_rows(sensor_installation_ri)
+
+#Check
+installation_ri
 
 
-#save(station_ri, file = "../data/RData/station_ri.RData")
 #save(installation_ri, file = "../data/RData/installation_ri.RData")
-
 write_csv(installation_ri, file = "../output/Installation_Ri.csv")
 
-# Split up into relevant groups.
-
-# 1. Taxa
-
-## Grey reef sharks
-ri_greys <- 
-  installation_ri %>% 
-  filter(Scientific_name == 'Carcharhinus amblyrhynchos')
-
-## Silver tips
-ri_silvers <- 
-  installation_ri %>% 
-  filter(Scientific_name == 'Carcharhinus albimarginatus')
-
-## GTs
-ri_gts <- 
-  installation_ri %>% 
-  filter(Scientific_name == 'Caranx ignobilis')
-
-## Lugubris
-ri_lugub <- 
-  installation_ri %>% 
-  filter(Scientific_name == 'Caranx lugubris')
-
-## Trout
-ri_trout <- 
-  installation_ri %>% 
-  filter(grepl('laev', Scientific_name))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+#######
