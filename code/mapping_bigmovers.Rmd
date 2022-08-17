@@ -21,6 +21,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width = 7, fig.height = 7)
+options(knitr.duplicate.label = 'allow')
 #rm(list=ls())
 #getwd()
 ```
@@ -110,17 +111,57 @@ reefsmap
 
 
 # Map tagging locations (need to run the wrangling script first to create the tag_locs object)
-```{r tagging-map}
-taggingmap <- 
-reefsmap +
-geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = transmitter_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
-  scale_shape_manual(values = c(21, 22, 24)) +
-  guides(fill = 'none')
 
-taggingmap
+```{r}
+source(knitr::purl("wrangling_bigmovers.Rmd", quiet=TRUE))
 ```
 
 
+Also need to allocated some better labels/IDs to replace transmitter_id 
+
+```{r}
+tag_locs <- 
+  tag_locs %>% 
+  mutate(shark_id = case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',
+                              grepl('63847', transmitter_id) ~ 'Tiger 2',
+                              grepl('63947', transmitter_id) ~ 'Tiger 3',
+                              grepl('64080', transmitter_id) ~ 'Silver 1',
+                              grepl('60580', transmitter_id) ~ 'Silver 2',
+                              grepl('64103', transmitter_id) ~ 'Grey 1'))
+```
+
+```{r tagging-map}
+taggingmap <- 
+reefsmap +
+geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = shark_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
+  scale_shape_manual(name = 'Shark ID', values = c(21, 22, 24)) +
+  scale_fill_brewer(name = 'Shark ID', palette = "Dark2", direction = -1) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)),
+         shape = 'none') +
+  theme(legend.position = 'none') +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+taggingmap
+
+ggsave(taggingmap, filename = '../output/tagmap_bigsharks.png', width = 62, height = 100, units = 'mm', dpi = 400)
+```
+
+Circles are silvertips
+Squares are greys
+Triangles are tigers
+
+# Plot legend separately
+```{r}
+library(ggpubr)
+# Extract the legend. Returns a gtable
+leg <- ggpubr::get_legend(taggingmap)
+
+# Convert to a ggplot and print
+shark_leg <- as_ggplot(leg)
+
+ggsave(shark_leg, filename = '../output/sharklegend.png', width = 62, height = 100, units = 'mm', dpi = 400)
+```
 
 
 
@@ -139,16 +180,37 @@ display.brewer.all(colorblindFriendly = TRUE)
   geom_curve(data = mover_sum_location, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
              size = 1, angle = 90, curvature = 0.4, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
   #scale_fill_manual(values = wes_palette("GrandBudapest1")) +
-  scale_colour_viridis_d()+
-  #scale_colour_brewer(palette = "Dark2")+
-  geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = transmitter_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
-  scale_shape_manual(values = c(21, 22, 24)) +
+  #scale_colour_viridis_d()+
+  scale_colour_brewer(palette = "Dark2")+
+  #geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = transmitter_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
+  #scale_shape_manual(values = c(21, 22, 24)) +
   coord_quickmap(ylim = c(-24, -10), xlim = c(143, 152.8))  # geom_curve doesn't play nicely with coord_map 
 
 
 ```
 
 Because some individuals have made the same movements they are masked in this plot - will need to split out the mover_sum_reef df and plot tigers separate from GRS and silvers - then set curvature and angle separately.
+Also want to make a more meaningful legend...
+
+
+```{r}
+tiger_locmovs <- 
+  tiger_locmovs %>% 
+  mutate(shark_id = case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',
+                              grepl('63847', transmitter_id) ~ 'Tiger 2',
+                              grepl('63947', transmitter_id) ~ 'Tiger 3'))
+  
+  
+other_locmovs <- 
+  other_locmovs %>% 
+  mutate(shark_id = case_when(grepl('64080', transmitter_id) ~ 'Silver 1',
+                              grepl('60580', transmitter_id) ~ 'Silver 2',
+                              grepl('64103', transmitter_id) ~ 'Grey 1'))
+
+```
+
+
+
 
 # As a curve - separate
 ```{r message=FALSE, warning=FALSE}
@@ -160,14 +222,14 @@ bigmov_map <-
           lty = "solid",  size = 1, angle = 120, curvature = 0.5, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
   scale_colour_brewer(palette = "Dark2", direction = -1) +
   #scale_colour_viridis_d() +                                                                                                              # viridis colour option
-  #guides(fill = 'none')+
+  guides(fill = 'none', colour = 'none') +
   labs(colour = "Individual ID") +
   theme(legend.text = element_text(face = "italic"),
         legend.position = c(.8,.8)) +
   geom_rect(aes(xmin = 147.5, xmax = 149, ymin = -18.2, ymax = -16.1), color="grey50", fill = 'transparent')+
   coord_quickmap(ylim = c(-24, -10), xlim = c(143, 158))  # geom_curve doesn't play nicely with coord_map 
 bigmov_map
-#ggsave(bigmov_map, filename = '../output/movement_mapV2.png', width = 200, height = 200, units = 'mm', dpi = 400)
+ggsave(bigmov_map, filename = '../output/bigmove_map.png', width = 200, height = 200, units = 'mm', dpi = 400)
 ```
 
 
@@ -180,6 +242,17 @@ bigmov_map
 
 
 ## Zoomed-in map for insetting
+
+### Could just crop the map above
+```{r}
+#zoom_map <- 
+  bigmov_map +
+  coord_quickmap(ylim = c(-18.2, -16.1), xlim = c(147.5, 149)) # geom_curve doesn't play nicely with coord_map 
+```
+A few issues though and it would be nice to have different curvatures for the segments on this map
+
+
+### Work up from scratch
 ```{r bigmov-zoom-map, fig.width = 4, fig.height = 7}
 zoom_map <- 
   reefsmap +
@@ -203,7 +276,7 @@ zoom_map
 
 # Save if required
 ```{r}
-#ggsave(zoom_map, filename = "../output/bigmove-fh-zoom.jpg", width = 100, height = 161, units = 'mm')
+ggsave(zoom_map, filename = "../output/bigmove-zoomed.jpg", width = 62, height = 100, units = 'mm')
 ```
 
 ```{r}
@@ -212,7 +285,7 @@ bigmov_zoom <-
     ggplotGrob(zoom_map), 
     xmin = 151, xmax = 159.5, ymin = -24, ymax = -15)
 bigmov_zoom
-#ggsave(bigmov_zoom, filename = "../output/bigmove-zoom.jpg", width = 200, height = 200, units = 'mm')
+ggsave(bigmov_zoom, filename = "../output/bigmove-zoom.jpg", width = 200, height = 200, units = 'mm')
 ```
 
 ## Zoom inset explanation:
@@ -260,6 +333,31 @@ ggsave(bigmov_final, filename = "../output/bigmover_fig_final.jpg", width = 200,
 
 
 
+## PLOTTING WITH ALL ELEMENTS SEPARATELY ##
+
+```{r message=FALSE, warning=FALSE}
+bigmov_map2 <- 
+  reefsmap +
+  geom_curve(data = tiger_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
+          lty = "11", size = 1, angle = 90, curvature = 0.25 , arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  geom_curve(data = other_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
+          lty = "solid",  size = 1, angle = 120, curvature = 0.5, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  scale_colour_brewer(palette = "Dark2", direction = -1) +
+  #scale_colour_viridis_d() +                                                                                                              # viridis colour option
+  guides(fill = 'none', colour = 'none') +
+  labs(colour = "Individual ID") +
+  theme(legend.text = element_text(face = "italic"),
+        legend.position = c(.8,.8)) +
+  geom_rect(aes(xmin = 147.5, xmax = 149, ymin = -18.2, ymax = -16.1), color="grey50", fill = 'transparent')+
+  coord_quickmap(ylim = c(-24, -10), xlim = c(143, 154)) +  # geom_curve doesn't play nicely with coord_map 
+  annotation_custom(ggplotGrob(straya), xmin = 141, xmax = 148, ymin = -24.5, ymax = -21) +
+  scalebar(cs_dryreef_df, dist = 200, dist_unit = "km", transform = TRUE, model = "WGS84", height = 0.008, 
+           location = 'bottomright', anchor = c(x = 150.2, y = -24.2), family = "Arial", st.size = 3.2, border.size = 0.4, st.bottom = FALSE) +
+  draw_image('../data/North_Pointer.jpg', x = 144.2, y = -21, scale = 1.5)
+bigmov_map2
+ggsave(bigmov_map2, filename = '../output/bigmove_map2.png', width = 125, height = 200, units = 'mm', dpi = 400)
+
+```
 
 
 

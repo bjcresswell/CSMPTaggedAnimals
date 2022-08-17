@@ -21,6 +21,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(knitr.duplicate.label = 'allow')
 #rm(list=ls())
 getwd()
 ```
@@ -67,9 +68,9 @@ Looking about right. Now need to get Coral Sea reefs on this map.
 cs_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef")
 cs_reef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef")
 #cs_cays <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_cay")
-#gbr_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "gbr_dryreef")
-#gbr_feats <- readOGR("../data/3dgbr_geomorph/shape", "gbr_features")
-#gbr_shelf <- readOGR("../data/3dgbr_geomorph/shape", "gbr_shelf")
+gbr_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "gbr_dryreef")
+gbr_feats <- readOGR("../data/3dgbr_geomorph/shape", "gbr_features")
+gbr_shelf <- readOGR("../data/3dgbr_geomorph/shape", "gbr_shelf")
 ```
 
 ## These can't be plotted directly in ggplot so need to be converted to dataframes:
@@ -77,9 +78,9 @@ cs_reef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef")
 cs_dryreef_df <- fortify(cs_dryreef)
 cs_reef_df <- fortify(cs_reef)
 #cs_cays_df <- fortify(cs_cays)
-#gbr_dryreef_df <- fortify(gbr_dryreef)
-#gbr_feats_df <- fortify(gbr_feats)
-#gbr_shelf_df <- fortify(gbr_shelf)
+gbr_dryreef_df <- fortify(gbr_dryreef)
+gbr_feats_df <- fortify(gbr_feats)
+gbr_shelf_df <- fortify(gbr_shelf)
 ```
 
 
@@ -150,10 +151,6 @@ glimpse(project_tag_list)
 ```
 
 
-
-
-
-
 # First need to summarise by reef and figure out numbers per reef 
 project_tag_list has a column called 'Location' but this has sites at a smaller scale than we want here (e.g. 'Flinders - South' instead of just 'Flinders') so we'll make a column that just has the overall reef site recorded
 ```{r}
@@ -164,9 +161,11 @@ project_tag_list %>%
                          grepl("Bougain", Location) ~ 'Bougainville',
                          grepl("Holmes", Location) ~ 'Holmes',
                          grepl("Flind", Location) ~ 'Flinders'))) %>% 
+  filter(Type != "press") %>%                                              # Don't want duplicate temp and press
   count(Reef, Org_type) 
 locsum
 ```
+
 # Another df with values assigned to each organism type, teleost vs elasmo (inc 0)
 ```{r}
 locsum <- locsum %>% 
@@ -179,10 +178,11 @@ locsum
 ```
 
 
-# And add back in the totals 
+# And add back in the totals and also a variable that will dictate the bubble size in the end plot
 ```{r}
 locsum<- locsum %>% 
- mutate(Total = Teleost+Elasmobranch)
+ mutate(Total = Teleost+Elasmobranch,
+        Size = Total*1.5)
 locsum
 
 ```
@@ -209,10 +209,10 @@ mutate(lat = case_when(grepl("Osprey", Reef) ~ -13.88,
 ```{r}
 locsum <- 
 locsum %>% 
-mutate(lat1 = case_when(grepl("Osprey", Reef) ~ -14,
-                        grepl("Bougain", Reef) ~ -15.25,
-                        grepl("Holmes", Reef) ~ -16,
-                        grepl("Flind", Reef) ~ -17),
+mutate(lat1 = case_when(grepl("Osprey", Reef) ~ -13.95,
+                        grepl("Bougain", Reef) ~ -15.1,
+                        grepl("Holmes", Reef) ~ -15.9,
+                        grepl("Flind", Reef) ~ -17.25),
        long1 = case_when(grepl("Osprey", Reef) ~ 149.5,
                          grepl("Bougain", Reef) ~ 149.5,
                          grepl("Holmes", Reef) ~ 149.5,
@@ -220,9 +220,6 @@ mutate(lat1 = case_when(grepl("Osprey", Reef) ~ -14,
 ```
 
 
-```{r}
-fish_cols = c("#5dfdcb", "#7cc6fe")
-```
 
 ```{r}
 locsum
@@ -235,26 +232,129 @@ nreefsmap +
   geom_segment(data = locsum, aes(x = long, y = lat, xend = long1, yend = lat1), size = .3,  col = "black") +
   geom_polygon(data = reefs_north, aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey', lwd = 0.3) + # reefs over top of lines
   geom_point(data = locsum, aes(x = long1, y = lat1, size = Total), fill = "white", col = "black", stroke = 0.5, pch = 21) +
-  scale_size(range = c(4, 35)) +
-  geom_text(data = locsum, aes(x = long1+1 , y = lat1+0.2, label = Reef)) +
-  geom_text(data = locsum, aes(x = long1+1, y = lat1-0.1, label = Total)) +
+  scale_size(range = c(8, 53)) +
+  scale_colour_brewer(palette = "Dark2") +
+  geom_text(data = locsum, aes(x = long1+1.5 , y = lat1, label = Reef)) +
+  geom_text(data = locsum, aes(x = long1, y = lat1, label = Total)) +
   theme(legend.position = 'none') +
-  coord_map(ylim = c(-17.8, -13.2), xlim = c(145, 151)) 
+  coord_quickmap(ylim = c(-17.8, -13.2), xlim = c(143, 152)) +
+  ylab("Latitude")+
+  xlab("Longitude")
+
+bubble_fig
 ```
+
+
+
+# Create Australia overview map for inset
+```{r}
+straya <- 
+  world %>% 
+  filter(region == 'Australia') %>% 
+  ggplot() +
+  geom_polygon(aes(x = long, y = lat, group = group), colour = 'black', fill = 'grey40', lwd = 0.3) +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(colour = "transparent"),
+        #panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  geom_rect(aes(xmin = 143, xmax = 152, ymin = -18, ymax = -13), color = "white", fill = 'transparent', lwd = 0.1) +
+  coord_quickmap(ylim = c(-45, -8), xlim = c(112, 154)) 
+straya
+```
+
+
+```{r final-tag-plot, fig.width = 10, fig.height = 6, out.height =}
+final_tag_plot <- 
+bubble_fig +
+  annotation_custom(ggplotGrob(straya), xmin = 143.1, xmax = 145, ymin = -17.7, ymax = -16) +
+  scalebar(cs_dryreef_df, dist = 100, dist_unit = "km", transform = TRUE, model = "WGS84", height = 0.008, 
+           location = 'bottomleft', anchor = c(x = 143.1, y = -17.9), family = "Arial", st.size = 3.2, border.size = 0.4, st.bottom = FALSE) +
+  draw_image('../data/North_Pointer.jpg', x = 143.6, y = -16, scale = 0.5)
+final_tag_plot
+```
+
 
 # Save
 ```{r}
-ggsave("../output/tagging_effort.png", plot = bubble_fig, width = 174, height = 120, units = "mm")
+ggsave("../output/tagging_effort.png", plot = final_tag_plot, width = 220, height = 138, units = "mm")
 ```
+
+
+
+# Bubble map V2
+## Respecify lat1 and long1 points and add labels
+```{r locsum2}
+locsum2 <- 
+  locsum %>% 
+  mutate(lat1 = case_when(grepl("Osprey", Reef) ~ -14.2,
+                        grepl("Bougain", Reef) ~ -15.5,
+                        grepl("Holmes", Reef) ~ -15.9,
+                        grepl("Flind", Reef) ~ -17.2),
+       long1 = case_when(grepl("Osprey", Reef) ~ 148,
+                         grepl("Bougain", Reef) ~ 146.6,
+                         grepl("Holmes", Reef) ~ 148.5,
+                         grepl("Flind", Reef) ~ 147)) %>% 
+  mutate(label = c("b", "d", "c", "a"))
+```
+
+```{r bubble-fig2, fig.height=6, fig.width=10}
+bubble_fig2 <- 
+nreefsmap +
+  #geom_polygon(data = gbr_dryreef_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'white', size = .2) +
+  #geom_polygon(data = gbr_feats_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'white', size = .2) +
+  #geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'white', size = .2) +
+  geom_segment(data = locsum2, aes(x = long, y = lat, xend = long1, yend = lat1), size = .3,  col = "black") +
+  geom_polygon(data = reefs_north, aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey', lwd = 0.3) + # reefs over top of lines
+  geom_point(data = locsum2, aes(x = long1, y = lat1, size = Total), fill = "white", col = "black", stroke = 0.5, pch = 21) +
+  scale_size(range = c(8, 53)) +
+  scale_colour_brewer(palette = "Dark2") +
+  #geom_text(data = locsum2, aes(x = long1+1.5 , y = lat1, label = Reef)) +
+  geom_text(data = locsum2, aes(x = long1, y = lat1, label = Total)) +
+  geom_text(data = locsum2, aes(x = long1, y = lat1 + 0.23, label = label), size = 4) +
+  theme(legend.position = 'none') +
+  coord_quickmap(ylim = c(-17.8, -13.2), xlim = c(143, 149)) +
+  ylab("Latitude")+
+  xlab("Longitude")
+
+bubble_fig2
+```
+
+
+```{r final-tag-plot2, fig.width = 10, fig.height = 6, out.height =}
+final_tag_plot2 <- 
+bubble_fig2 +
+  annotation_custom(ggplotGrob(straya), xmin = 143.1, xmax = 145, ymin = -17.7, ymax = -16) +
+  scalebar(cs_dryreef_df, dist = 100, dist_unit = "km", transform = TRUE, model = "WGS84", height = 0.008, 
+           location = 'bottomleft', anchor = c(x = 143.1, y = -17.9), family = "Arial", st.size = 3.2, border.size = 0.4, st.bottom = FALSE) +
+  draw_image('../data/North_Pointer.jpg', x = 143.6, y = -16, scale = 0.5)
+final_tag_plot2
+```
+
+# Save V2
+```{r}
+ggsave("../output/tagging_effort2.png", plot = final_tag_plot2, width = 220, height = 180, units = "mm")
+```
+
+
 
 
 
 # Bubble scatter pie plot
+
+# Specify colour scheme
+```{r}
+fish_cols = c("#5dfdcb", "#7cc6fe")
+```
+
+# Plot
 ```{r pie-fig, fig.height=8, fig.width=8}
 #pie_fig <- 
 nreefsmap +
   geom_segment(data = locsum, aes(x = long, y = lat, xend = long1, yend = lat1), size = .3,  col = "black") +
-  geom_scatterpie(data = locsum, aes(x=long1, y=lat1, group = Reef, r = Total/100), cols = c('Teleost', 'Elasmobranch'), lwd = 0.3) +
+  geom_scatterpie(data = locsum, aes(x=long1, y=lat1, group = Reef, r = Total/100), cols = c('Teleost', 'Elasmobranch'), lwd = 0.3,) +
   scale_fill_manual(values = fish_cols) +
   theme(legend.position = 'none')
 ```

@@ -126,13 +126,25 @@ site_list
 ```{r osprey-sites}
 osprey_vr2s <- 
   osprey_zoom +
-  geom_point(data = site_list, aes(x = station_longitude, y =station_latitude), colour = 'grey10', fill = 'lightskyblue', size = 8,  stroke = 0.3, shape = 21 )+
+  geom_point(data = site_list, aes(x = station_longitude, y =station_latitude), colour = 'grey10', fill = 'lightskyblue', size = 6,  stroke = 0.3, shape = 21 )+
   geom_text(data = site_list, aes(x = station_longitude, y =station_latitude, label = station_name), size = 3) +
    annotate("text", x = 146.5, y = -13.79, label = "Osprey Reef - VR2W locations", 
            colour = "black", size = 5, fontface = 2, family = "Helvetica", hjust = 0)
 ggsave(osprey_vr2s, filename = '../output/receivers_osprey.png', width = 200, height = 200, units = 'mm', dpi = 400)
 
 ```
+
+
+# Add in tagging locations
+
+```{r}
+osprey_vr2s +
+    geom_point(data = project_teleosts, aes(x = Long, y =Lat), colour = 'grey10', fill = 'black', size = 4,  stroke = 0.5, shape = 3 )
+```
+
+
+
+
 
 ```{r}
 ggsave()
