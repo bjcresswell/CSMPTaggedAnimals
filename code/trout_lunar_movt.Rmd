@@ -1,0 +1,213 @@
+---
+title: "Teleost Lunar Spawning Movements"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "../output";
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, 'teleost_lunar_spawning.html')) })
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 14
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.duplicate.label = 'allow')
+```
+
+
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Packages
+library(sp)
+library(rgdal)
+library(rgeos)
+#library(tibbletime) # Time series management - don't think we need. lubridate prob better.
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(plotrix)   # Calculates SE
+library(collapse)
+library(magrittr)
+library(lubridate)
+library(tidyverse)
+```
+
+
+```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Housekeeping
+#rm(list=ls())
+#getwd()
+```
+
+
+# Introduction {.tabset .tabset-faded} 
+Rationale for this part of the analysis is the single coral trout (Plectropomus laevis). This individual, although only having 108 detections in our dataset over 16 days, was fairly well distributed over the whole year. Further, every single one of these detections was at night:
+
+
+### To load teleost data
+#### Run telost_movement_timeanddistance.Rmd first:
+```{r source-teleosts, message=FALSE, warning=FALSE, paged.print=FALSE}
+source(knitr::purl("teleost_movement_timeanddistance.Rmd", quiet=TRUE))
+```
+
+### Subset trout data 
+```{r}
+trout <- 
+  teleosts %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  mutate(date = as.Date(detection_timestamp)) %>% 
+  dplyr::select(transmitter_id, date) %>% 
+  arrange(date) %>% 
+  distinct() %>% 
+  mutate(present = 'Y',
+         present_num = 1) %>% 
+  complete(date = seq.Date(min(date), max(date), by="day")) %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), -20)) %>% 
+  mutate_if(is.character, ~replace(., is.na(.), 'N'))
+```
+
+
+# Quick plot
+To see presence vs absence
+```{r}
+trout %>% 
+  ggplot(aes(x = date, y = present_num)) + 
+  xlab("Date") + 
+  ylab("Trout") +
+  ylim(0, 2) +
+  geom_point()
+```
+  
+- Well spread out with some gaps during parts of the year
+
+# Map against lunar data
+  
+- Lunar data downloaded from the NASA's HORIZON platform: https://ssd.jpl.nasa.gov/horizons/
+- Includes 3 metrics of lunar phase:  
+    1. Percent of moon illuminated (Illu%) - a basic measure of how much of the moon's surface is lit up by the sun
+    2. Surface brightness (S-brt) - takes into account some other influences on overall observed brightness
+    3. Apparent magnitude (APmag) - another measure of brightness of moon
+- Will have a look at all 3 and see if one seems more appropriate..    
+    
+### To load lunar data:
+```{r}
+moon <- read_excel('../data/osprey_lunar_det.xlsx', trim_ws = TRUE) %>% 
+  mutate(date = lubridate::ymd(date))
+moon
+```
+  
+- Lots of other variables in there - no idea what most of them are.  
+
+
+### EDA - compare all the moon phase metrics against presence of trout
+```{r}
+moon %>% 
+  ggplot() + 
+  geom_line(aes(x = date, y = APmag), colour = 'red') +
+  geom_line(aes(x = date, y = `S-brt`), colour = 'black') +
+  geom_line(aes(x = date, y = `Illu%`), colour = 'blue') +
+  geom_point(data = trout, mapping = (aes(x = date, y = present_num))) + 
+  xlab("Date") + 
+  ylab("Value") +
+  ylim(-13, 100) 
+```
+ 
+- All look pretty similar in terms of cycle. Could pick any of them I think
+- However, I don't think I can run any analysis where this is a continuous predictor variable due to very low sample size.
+- Could try as categorical predictor..
+
+
+# Moon phase as a categorical predictor
+
+### Assign diff levels of luminosity to diff moon phases
+```{r}
+moon <- 
+  moon %>% 
+  mutate(moonstate = case_when(`Illu%` > 75 ~ 'Full' ,
+                               `Illu%` < 25 ~ 'New')) %>% 
+  mutate_if(is.character, ~replace(., is.na(.), 'Mid'))
+```
+
+
+### Next need to replace that -20 that I jankily used for the abacus plot earlier or the model/plots won't work
+```{r}
+combdata <- 
+  merge(moon, trout, by = 'date') %>% 
+  mutate(present_num = replace(present_num, present_num == -20, 0))
+```
+
+### Plot: Number of nights present by moon state
+```{r}
+combdata %>% 
+  group_by(moonstate) %>% 
+  mutate(nights = sum(present_num)) %>% 
+  dplyr::select(moonstate, nights) %>% 
+  distinct %>% 
+  ggplot(aes(x = moonstate, y = nights)) +
+  geom_bar(stat="identity", position="dodge", color="black")
+
+```
+  
+- If anything, appears to prefer a mid-moon state at this station, but clearly data deficient..
+- Unlikely to yield anything in a model but will have a go anyway..
+
+# Modelling
+
+### Model formula
+- Have set it up as presence-absence data (1 vs 0), so will use a binomial error family with logit link
+```{r}
+library(glmmTMB)
+library(emmeans)
+model1 <- glmmTMB(present_num ~ moonstate, data = combdata, family=binomial(link = "logit"))
+```
+
+### Model validation
+```{r}
+library(DHARMa)
+simulateResiduals(model1, plot=TRUE) # fit is fine
+```
+  
+- Looking good!
+
+# Model investigation
+```{r}
+library(emmeans)
+library(car)
+
+summary(model1)
+model1 %>% 
+  emmeans(pairwise ~ moonstate, transform="response") %>% 
+  confint(level = 0.9)
+```
+# Observations
+  
+- There is absolutely no statistical significance of moon phase on when trout visit CS-03...
+- ...at least as a categorical predictor within a GLM, with low sample size (1!)
+- The massive number of zero observations combined with tiny sample size leads to negligible predicted effect sizes (in emmeans)
+- A GAM might help tease out patterns, but mostly would need more individual fishes or at least longer-term data from this one individual: this is still a decent rationale for continuing this project (if anyone can be bothered to keep on hunting trout out there...)
+- Trout may still be moving elsewhere in response to lunar patterns, but just not to this receiver station.
+- Regardless, the fact that this organism only turns up here at night is still interesting... 
+
+
+
+
+
+
+
+

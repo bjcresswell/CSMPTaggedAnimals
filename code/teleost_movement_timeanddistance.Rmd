@@ -1,0 +1,219 @@
+---
+title: "Analysing Teleost Movement Timing and Distance"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "../output";
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, 'teleost_movement_timingdistance.html')) })
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 14
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.duplicate.label = 'allow')
+```
+
+
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Packages
+library(sp)
+library(rgdal)
+library(rgeos)
+#library(tibbletime) # Time series management - don't think we need. lubridate prob better.
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(plotrix)   # Calculates SE
+library(collapse)
+library(magrittr)
+library(tidyverse)
+```
+
+
+```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Housekeeping
+#rm(list=ls())
+#getwd()
+```
+
+
+# Data load and wrangling {.tabset .tabset-faded}
+
+## Load data
+### Going to load the main dataset and tease out movement time from there
+```{r load-data, message=FALSE, warning=FALSE}
+load(file = "../data/RData/alldata.RData")
+```
+
+## Filter out
+### Only want teleosts for now
+```{r teleost-filter}
+teleosts <- 
+  alldata %>% 
+  filter(Org_type == 'Teleost')
+```
+
+
+## Checks
+### Check how many we have
+```{r df-check, echo=FALSE, message=FALSE, warning=FALSE}
+teleosts %>% 
+  dplyr::select(transmitter_id) %>% 
+  distinct() 
+```
+  
+- 17. We know we are missing 3 of the sensor tagged individuals (so 6 transmitter_ids) and that we have 23 project serials out there. 23-6 = 17. Perfect.
+
+## Project tag list
+### Check against project tag list
+```{r check-proj-teleosts, echo=FALSE, message=FALSE, warning=FALSE}
+# Can check against project_teleosts df
+source('project_tag_list.R')
+project_teleosts %>% 
+  group_by(Serial) %>% 
+  distinct()
+```
+
+  
+####  
+
+# Exploring timing of movements
+
+## Abacus plots
+```{r teleost-abacus, echo=FALSE, message=FALSE, warning=FALSE}
+teleosts %>% 
+  ggplot(aes(x = detection_timestamp, y = station_name)) + 
+  xlab("Date") + 
+  ylab("Station") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+  
+- Hard to discern any temporal pattern from this abacus plot
+
+
+
+# Day vs night {.tabset .tabset-faded}
+
+```{r teleosts-mutate-daynight, echo=FALSE, message=FALSE, warning=FALSE}
+teleosts <- 
+  teleosts %>%
+  mutate(hour = hour(detection_timestamp),
+         minute = minute(detection_timestamp),
+         time = hm(paste(hour, minute))) %>% 
+  mutate(tod = case_when(hour %in% (6:18) ~ "Day",
+         TRUE ~ "Night"))
+```
+
+
+## Bar plots
+```{r tab-plot, echo=FALSE, message=FALSE, warning=FALSE}
+# Day
+teleosts %>% 
+  filter(tod == 'Day') %>% 
+  dplyr::select(station_name, station_name_long) %>% 
+  group_by(station_name, station_name_long) %>% 
+  mutate(stationobs = n()) %>% 
+  distinct %>% 
+  arrange(station_name) %>% 
+  #print() %>% 
+  ggplot(aes(x = station_name, y = stationobs)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  ggtitle("Day") +
+  labs(y= "No observations", x = "Osprey station code")
+
+# Night
+teleosts %>% 
+  filter(tod == 'Night') %>% 
+  dplyr::select(station_name, station_name_long) %>% 
+  group_by(station_name, station_name_long) %>% 
+  mutate(stationobs = n()) %>% 
+  distinct %>% 
+  arrange(station_name) %>% 
+  #print() %>% 
+  ggplot(aes(x = station_name, y = stationobs)) +
+  geom_bar(stat="identity", position="dodge", color="black") +
+  #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  ggtitle("Night") +
+  labs(y= "No observations", x = "Osprey station code")
+```
+  
+
+## Tables
+```{r}
+# Day
+teleosts %>% 
+  filter(tod == 'Day') %>% 
+  dplyr::select(station_name, station_name_long) %>% 
+  group_by(station_name, station_name_long) %>% 
+  mutate(stationobs = n()) %>% 
+  distinct %>% 
+  arrange(station_name) %>% 
+  print() 
+
+
+# Night
+teleosts %>% 
+  filter(tod == 'Night') %>% 
+  dplyr::select(station_name, station_name_long) %>% 
+  group_by(station_name, station_name_long) %>% 
+  mutate(stationobs = n()) %>% 
+  distinct %>% 
+  arrange(station_name) %>% 
+  print()
+
+```
+  
+  
+- Clearly higher number of detections during the day on CS-03 (Overnight Moorning) and CS-06 (Around the Bend), shifting to more detections at CS-04 (Lagoon 1) during the night. 
+- Seems like a diurnal pattern of movement, likely for foraging/predation?
+- Don't think we'll have enough data points to explore lunar patterns or longer cycles but might be worth a go.
+  
+
+
+# Species
+
+```{r}
+#trout <- 
+  teleosts %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  mutate(detection_date = as.Date(detection_timestamp)) %>% 
+  dplyr::select(transmitter_id, detection_date) %>% 
+  distinct() %>% 
+  arrange(detection_date) %>% 
+  ggplot(aes(x = detection_date, y = transmitter_id)) + 
+  xlab("Date") + 
+  ylab("Trout") +
+  geom_point()
+
+
+
+
+
+
+```
+
+
+
+
+
+
