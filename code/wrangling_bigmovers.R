@@ -1,68 +1,34 @@
----
-title: "Data analysis and visualisation - big movers"
-author: "Ben Cresswell"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: 
- html_document:
-    code_folding: show
-    collapse: no
-    df_print: paged
-    fig_caption: yes
-    fig_height: 4
-    fig_width: 4
-    highlight: textmate
-    theme: spacelab
-    toc: yes
-    toc_float: yes
-editor_options: 
-  chunk_output_type: inline
----
-# Created 17 May 2022 BJC
-# Last edit 14 Jun 2022 BJC
-
-#This document is designed to generate map of whole CSMP and then plot on the organisms that make big moves between these
-
-# Set up Rmd
-```{r setup, include=FALSE}
+## ----setup, include=FALSE----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
-```
 
-# Load required packages
-```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+## ----packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 library(writexl)
 library(readxl)
 library(lubridate)
 library(tidyverse)
 #library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
-```
 
-# Load data
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #rm(list=ls())
 load(file = "../data/RData/alldata.RData")
-```
 
-# Checks
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 glimpse(alldata)
-```
 
-# Check locations etc
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 alldata %>% 
   dplyr::select(project_name, site_code, installation_name, station_name, station_name_long, Location, Site, station_latitude, station_longitude, Lat, Long) %>% 
   distinct()
 
 summary(alldata$Site) %>% 
   as.data.frame()
-```
-
-Location, Site, Lat, Long -> These are all information on tagging location which is why there are some missing values for these (some of these animals weren't tagged by us). (*Should probably go back through whole wrangling script and make this clear*)
 
 
-# Filter out just the organisms we are interested in (the big movers!)
-NB: we know these tag IDs from the EDA (abacus plots and unknown tags)
-```{r filter-movers}
+## ----filter-movers-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 movers <- alldata %>% 
   filter(transmitter_id %in% c("A69-9001-64103", 
                              "A69-9001-60580", 
@@ -72,18 +38,14 @@ movers <- alldata %>%
                              "A69-9001-63947")) %>% 
   droplevels() %>% 
   mutate(transmitter_id = fct_relevel(transmitter_id, "A69-9001-64103", after = Inf)) # Have to move this individual to the end so their osprey obs doesn't overlap with 64080
-```
 
-# Check we've got the right ones in there
-```{r check-id-filter}
+
+## ----check-id-filter---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Simultaneously can check how many obs of each
 summary(movers$transmitter_id)
-```
 
-## So that's the main database imported. Will just need to insert 2 extra components to this:
-1. Any detections external to our array (in this case only relevant for the GRS that turned up at Saunders Reef - 64103):
 
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ext_dets <- read_excel('../data/outside_array_fromAB.xlsx', trim_ws = TRUE) %>% 
 transmute(transmitter_id = factor(paste(`code space`, ID, sep = '-')),      # Going to make this the same structure as the tag_locs object below..
          Scientific_name = factor(Scientific_name),
@@ -94,22 +56,16 @@ transmute(transmitter_id = factor(paste(`code space`, ID, sep = '-')),      # Go
          Date = as.Date(date, format = "%d.%m.%Y"))
 
 ext_dets 
-```
 
-2. Original tagging/release locations - this information is actually already in the df, but we need to line it up with the detection information so we'll extract and then bind back
 
-# Make df with original tagging locations in
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 tag_locs <- movers %>% 
   dplyr::select(transmitter_id, Scientific_name, Location, Site, Lat, Long, Date) %>% 
   distinct()
 tag_locs
-```
 
 
-# These 2 dfs are quite different to the main movers format but need to get them together if we want to graph together on the same plot
-Need to mutate movers to be the same stx as tag_locs/ext_dets and bind them together.
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 movers <- 
   movers %>% 
   mutate(transmitter_id = transmitter_id,
@@ -124,11 +80,9 @@ movers <-
   arrange(transmitter_id, Date)                                     # Need to make sure all detections are ordered by individual and also by date of detection
 movers
 
-```
 
-## For Flinders and Holmes Reefs we make a distinction between N/S, E/W so we'll put in a variable that handles that.
-We'll call it "sublocation". Obviously, the other reefs/locations won't have this, so we'll coalesce the location values over to that variable to avoid having NAs. Doesn't really matter either way..
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 movers <- 
   movers %>% 
   mutate(Sublocation = factor(case_when(grepl("F1|F2|F3", Site) ~ 'Flinders - South',
@@ -136,17 +90,9 @@ movers <-
                                  grepl("H1|H2", Site) ~ 'Holmes - West',
                                  grepl("H3|H4", Site) ~ 'Holmes - East'))) %>%  
   mutate(Sublocation = coalesce(Sublocation, Location))
-```
 
-Now we need to convert this 'raw' df into something we can use for plotting movement...
 
-# 1. Movement by overall location
-## We first need a df which just records when an animal moves reef (Location), ignoring small scale movements within that reef (i.e. by Site or Sublocation)
-### The following chunk does this:
-- 'Compresses' data so that multiple consecutive days observed at the same reef ('Location') are compressed into one observation -> need to do this to make geom_curve work
-- We lose the 'Site' level information as we don't need it here (Note we do need this information to run the whole approach again at a finer resolution, but see below for the create of mover_sum_site) 
-- We 'widen' the data by turning the Location column into separate To_Location and From_Location (and sub-location for checking) variables
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 mover_sum_location <- 
   movers %>% 
   group_by(transmitter_id) %>%                                                     # Create a blank row per change in id. W/out this the  new 'to/from' vars will be mixed up across individuals
@@ -166,23 +112,17 @@ mover_sum_location <-
   filter(From_Sublocation != To_Sublocation,                                       # Finally, remove entries if the to/from sublocations or overall locations are the same (means no blue-water/large movement)
          From_Location != To_Location)                                             # Have to do both of these due to mismatch in names for tagging vs receiver locs
 head(mover_sum_location)
-```
 
 
-# 1.a. We can now use this df to plot movements (see mapping_bigmovers) HOWEVER, where individuals have made the same movement the geom_curves will be stacked on top of each other obscuring all but one. SO..
-## One option is to split this df up further for plotting -> into tigers and carcharhinids (so that arrows don't override each other)
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 tiger_locmovs <- mover_sum_location %>% 
   filter(str_detect(Scientific_name, 'Galeo'))
 
 other_locmovs <- mover_sum_location %>% 
   filter(str_detect(Scientific_name, 'Carch'))
-```
 
 
-# 2. Movement including sublocation moves -> this is for the zoomed in map 
-This is similar to the above chunk but now includes sublocation movements (ie between Flin/Holm N/S/E/W). ∆ Note this uses the filter at the END to make sure there aren't any duplicate Sites (as opposed to the cumsum approach earlier)
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 mover_sum_sublocation <- 
   movers %>% 
   group_by(transmitter_id) %>%                                                     # Create a blank row per change in id. W/out this the  new 'to/from' vars will be mixed up across individuals
@@ -202,11 +142,9 @@ mover_sum_sublocation <-
   filter(From_Sublocation != To_Sublocation)                                       # Finally, remove entries if the to/from sublocations are the same (means no blue-water movement)
 
 (mover_sum_sublocation)
-```
 
 
-## Can check diff between 2 dfs by looking at one individual
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 mover_sum_location %>% 
   filter(transmitter_id == 'A69-9001-60580')
 
@@ -214,49 +152,34 @@ mover_sum_sublocation %>%
   filter(transmitter_id == 'A69-9001-60580')
 
 #check <- movers %>%   filter(transmitter_id == 'A69-9001-60580')
-```
 
-# 2.a. Will also split this up into tigers and carcharhinids (so that arrows don't override each other)
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 tiger_sublocmovs <- mover_sum_sublocation %>% 
   filter(str_detect(Scientific_name, 'Galeo'))
 
 other_sublocmovs <- mover_sum_sublocation %>% 
   filter(str_detect(Scientific_name, 'Carch'))
-```
 
 
-
-
-######
-
-
-
-
-### ARCHIVE WRANGLING ###
-
-# Summary of number of times detected for every day spent at each location -> not currently needed
-```{r}
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #loc_obs <- 
 #  movers %>% 
 #  group_by(across(everything())) %>% 
 #  count() %>% 
 #  mutate(No_obs = n)
-```
 
-# Location totals (can maybe use these to scale geom_point for the different reefs, although the diffs are massive) -> not currently needed
-```{r}
+
+## ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #total_loc_obs <- 
 #  movers %>% 
 #  group_by(Location) %>% 
 #  count() %>% 
 #  rename(No_obs = n)
-```
-=
-# Summarise data to just one line per day observed
-This chunk basically 'compresses' the df down one level -> no repeat observations. So if anything changes (e.g. different site, same day OR same site, different day) it will keep a row here. This would be the finest level of detail required and would give us a point per day/site. Won't work with geom_curve as the start and end points may be the same (same site, different date). It is also a useful bridging object to create what we ultimately need (see below)
-```{r mover-sum-create}
+
+
+## ----mover-sum-create--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #mover_sum_all <- 
 #  movers %>% 
 #  distinct()
-```
+
