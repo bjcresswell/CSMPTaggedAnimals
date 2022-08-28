@@ -80,14 +80,14 @@ teleosts %>%
   distinct() 
 ```
   
-- 17. We know we are missing 3 of the sensor tagged individuals (so 6 transmitter_ids) and that we have 23 project serials out there. 23-6 = 17. Perfect.
+- 10 We know we are missing 3 of the sensor tagged individuals and that we have 13 project serials out there. 13-3 = 10. Perfect.
 
 ## Project tag list
 ### Check against project tag list
 ```{r check-proj-teleosts, echo=FALSE, message=FALSE, warning=FALSE}
 # Can check against project_teleosts df
 source('project_tag_list.R')
-project_teleosts %>% 
+project_serials_teleosts %>% 
   group_by(Serial) %>% 
   distinct()
 ```
@@ -187,33 +187,9 @@ teleosts %>%
 - Clearly higher number of detections during the day on CS-03 (Overnight Moorning) and CS-06 (Around the Bend), shifting to more detections at CS-04 (Lagoon 1) during the night. 
 - Seems like a diurnal pattern of movement, likely for foraging/predation?
 - Don't think we'll have enough data points to explore lunar patterns or longer cycles but might be worth a go.
-  
+filter(Scientific_name == 'Caranx ignobilis') %>%
 
-
-# Species
-
-```{r}
-#trout <- 
-  teleosts %>% 
-  filter(Common_name == "Footballer trout") %>% 
-  mutate(detection_date = as.Date(detection_timestamp)) %>% 
-  dplyr::select(transmitter_id, detection_date) %>% 
-  distinct() %>% 
-  arrange(detection_date) %>% 
-  ggplot(aes(x = detection_date, y = transmitter_id)) + 
-  xlab("Date") + 
-  ylab("Trout") +
-  geom_point()
-
-
-
-
-
-
-```
-
-
-
-
-
+# Important:
+Not appropriate to present total numbers of detections due to autocorrelation issues, so will need to redo this analysis but using Ri as the base metric
+However, will dig a bit deeper into the raw data for the coral trout (see separate script)
 

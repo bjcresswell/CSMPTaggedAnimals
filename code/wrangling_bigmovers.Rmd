@@ -32,6 +32,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(writexl)
 library(readxl)
 library(lubridate)
+library(magrittr)
 library(tidyverse)
 #library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
 ```
@@ -71,13 +72,36 @@ movers <- alldata %>%
                              "A69-9001-4172",
                              "A69-9001-63947")) %>% 
   droplevels() %>% 
-  mutate(transmitter_id = fct_relevel(transmitter_id, "A69-9001-64103", after = Inf)) # Have to move this individual to the end so their osprey obs doesn't overlap with 64080
+  mutate(transmitter_id = fct_relevel(transmitter_id, "A69-9001-64103", after = Inf)) %>%  # Have to move this individual to the end so their osprey obs doesn't overlap with 64080
+  mutate(shark_id = factor(case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',           # Create meaningful ID for later on
+                                     grepl('63847', transmitter_id) ~ 'Tiger 2',
+                                     grepl('63947', transmitter_id) ~ 'Tiger 3',
+                                     grepl('64080', transmitter_id) ~ 'Silver 1',
+                                     grepl('60580', transmitter_id) ~ 'Silver 2',
+                                     grepl('64103', transmitter_id) ~ 'Grey 1'))) %>% 
+  mutate(sharkloc = factor(case_when(grepl('4172', transmitter_id) ~ 'Tiger 1 - Saunders Reef',           # Create meaningful ID for later on
+                                     grepl('63847', transmitter_id) ~ 'Tiger 3 - Cap. Bunkers',
+                                     grepl('63947', transmitter_id) ~ 'Tiger 2 - Orpheus Island',
+                                     grepl('64080', transmitter_id) ~ 'Silver 1 - Holmes Reef',
+                                     grepl('60580', transmitter_id) ~ 'Grey 2 - Flinders Reef',
+                                     grepl('64103', transmitter_id) ~ 'Grey 1 - Osprey Reef')))
+  
 ```
+
+
+
+
+
+
+
 
 # Check we've got the right ones in there
 ```{r check-id-filter}
 # Simultaneously can check how many obs of each
-summary(movers$transmitter_id)
+movers %$% 
+  summary(transmitter_id) 
+movers %$% 
+  summary(shark_id)
 ```
 
 ## So that's the main database imported. Will just need to insert 2 extra components to this:
@@ -91,8 +115,19 @@ transmute(transmitter_id = factor(paste(`code space`, ID, sep = '-')),      # Go
          Site = factor(Site),
          Lat = lat,
          Long = long,
-         Date = as.Date(date, format = "%d.%m.%Y"))
-
+         Date = as.Date(date, format = "%d.%m.%Y")) %>% 
+mutate(shark_id = factor(case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',           # Create meaningful ID for later on
+                              grepl('63847', transmitter_id) ~ 'Tiger 2',
+                              grepl('63947', transmitter_id) ~ 'Tiger 3',
+                              grepl('64080', transmitter_id) ~ 'Silver 1',
+                              grepl('60580', transmitter_id) ~ 'Silver 2',
+                              grepl('64103', transmitter_id) ~ 'Grey 1'))) %>% 
+  mutate(sharkloc = factor(case_when(grepl('4172', transmitter_id) ~ 'Tiger 1 - Saunders Reef',           # Create meaningful ID for later on
+                                     grepl('63847', transmitter_id) ~ 'Tiger 3 - Cap. Bunkers',
+                                     grepl('63947', transmitter_id) ~ 'Tiger 2 - Orpheus Island',
+                                     grepl('64080', transmitter_id) ~ 'Silver 1 - Holmes Reef',
+                                     grepl('60580', transmitter_id) ~ 'Grey 2 - Flinders Reef',
+                                     grepl('64103', transmitter_id) ~ 'Grey 1 - Osprey Reef')))
 ext_dets 
 ```
 
@@ -101,9 +136,10 @@ ext_dets
 # Make df with original tagging locations in
 ```{r}
 tag_locs <- movers %>% 
-  dplyr::select(transmitter_id, Scientific_name, Location, Site, Lat, Long, Date) %>% 
+  dplyr::select(transmitter_id, Scientific_name, shark_id, sharkloc, Location, Site, Lat, Long, Date) %>% 
   distinct()
-tag_locs
+ 
+  tag_locs
 ```
 
 
@@ -114,6 +150,8 @@ movers <-
   movers %>% 
   mutate(transmitter_id = transmitter_id,
          Scientific_name = Scientific_name,
+         shark_id = shark_id,
+         sharkloc = sharkloc,
          Location = installation_name,
          Site = station_name,
          Lat = station_latitude,
@@ -164,7 +202,8 @@ mover_sum_location <-
   filter(!is.na(From_Location),                                                    # Get rid of lines with NAs in the From column (these will basically be the line before the tagging event so obviously can't know this)
          !is.na(To_Location)) %>%                                                  # ..plus the one after the final entry for each animal (we don't know this either)
   filter(From_Sublocation != To_Sublocation,                                       # Finally, remove entries if the to/from sublocations or overall locations are the same (means no blue-water/large movement)
-         From_Location != To_Location)                                             # Have to do both of these due to mismatch in names for tagging vs receiver locs
+         From_Location != To_Location)                                         # Have to do both of these due to mismatch in names for tagging vs receiver locs
+ 
 head(mover_sum_location)
 ```
 
@@ -225,38 +264,18 @@ other_sublocmovs <- mover_sum_sublocation %>%
   filter(str_detect(Scientific_name, 'Carch'))
 ```
 
+# Finally, split out tagging data - tigers vs others
+```{r}
+tag_locs_tigers <-
+  tag_locs %>% 
+  filter(Scientific_name == "Galeocerdo cuvier")
+
+tag_locs_others <- 
+  tag_locs %>% 
+  filter(Scientific_name != "Galeocerdo cuvier")
+```
 
 
 
 ######
 
-
-
-
-### ARCHIVE WRANGLING ###
-
-# Summary of number of times detected for every day spent at each location -> not currently needed
-```{r}
-#loc_obs <- 
-#  movers %>% 
-#  group_by(across(everything())) %>% 
-#  count() %>% 
-#  mutate(No_obs = n)
-```
-
-# Location totals (can maybe use these to scale geom_point for the different reefs, although the diffs are massive) -> not currently needed
-```{r}
-#total_loc_obs <- 
-#  movers %>% 
-#  group_by(Location) %>% 
-#  count() %>% 
-#  rename(No_obs = n)
-```
-=
-# Summarise data to just one line per day observed
-This chunk basically 'compresses' the df down one level -> no repeat observations. So if anything changes (e.g. different site, same day OR same site, different day) it will keep a row here. This would be the finest level of detail required and would give us a point per day/site. Won't work with geom_curve as the start and end points may be the same (same site, different date). It is also a useful bridging object to create what we ultimately need (see below)
-```{r mover-sum-create}
-#mover_sum_all <- 
-#  movers %>% 
-#  distinct()
-```

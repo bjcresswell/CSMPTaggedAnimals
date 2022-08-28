@@ -1,0 +1,324 @@
+---
+title: "Analysing Teleost Movement Timing and Distance - Ri"
+author: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "../output";
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, 'teleost_movement_timingdistance_Ri.html')) })
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 14
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.duplicate.label = 'allow')
+```
+
+
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Packages
+library(sp)
+library(rgdal)
+library(rgeos)
+#library(tibbletime) # Time series management - don't think we need. lubridate prob better.
+library(adehabitatHR)
+library(leaflet)
+library(ggmap)    # for fortifying shapefiles
+library(readxl)
+library(scatterpie)
+library(plotrix)   # Calculates SE
+library(collapse)
+library(magrittr)
+library(tidyverse)
+```
+
+
+```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Housekeeping
+#rm(list=ls())
+#getwd()
+```
+
+
+# Data load and wrangling {.tabset .tabset-faded}
+
+## Load data
+### Going to load the main dataset and tease out movement time from there
+```{r load-data, message=FALSE, warning=FALSE}
+load(file = "../data/RData/alldata.RData")
+```
+
+
+# Select only variables and organisms required for this analysis
+
+```{r}
+diurnal_ri <- alldata %>%
+  filter(Org_type != 'NA') %>%                        # We don't want the random detections included in this analysis
+  filter(Scientific_name !='Galeocerdo cuvier') %>%   # Also don't want the visitors from outside the array included in this analysis  droplevels() %>% 
+  dplyr::select(transmitter_id, 
+                #receiver_name,                                                       # VR2W serial # - don't want this in
+                detection_timestamp,                                                  # 
+                installation_name, station_name, station_name_long,                   # Variables relating to detecting receiver
+                #deploymentdatetime_timestamp, recoverydatetime_timestamp,            # Will add in deployment dates later (for whole proj, not individual deps)
+                Common_name, Scientific_name, Date, 
+                Location, Site, Sex, Org_type) %>%                                    # Leave in the orrganism and tagging info
+  mutate(hour = hour(detection_timestamp)) %>% 
+  mutate(tod = case_when(hour %in% (6:18) ~ "Day",
+                         TRUE ~ "Night")) %>% 
+  mutate(tag_date = as.Date(Date), 
+         detection_date = as.Date(detection_timestamp),                               # One row/observation for every day the organism detected in array
+         tag_loc = Location, 
+         tag_site = Site, 
+         .keep = 'unused') %>%
+    dplyr::select(!hour) %>% 
+  distinct
+  
+```
+
+
+
+## Reload the latest receiver metadata file, if not already loaded (contains the VR2 retrieval dates)
+```{r}
+vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
+  tibble() %>% # Make into tibble format
+  mutate(recovery_date = as.Date(recoverydatetime_timestamp), .keep = 'unused') %>% 
+  mutate_if(is.character, as.factor) # Sort out variables
+```
+
+## Merge in just the retrieval dates to the main df
+```{r}
+diurnal_ri <- 
+  diurnal_ri %>% 
+  merge(vr2ws_dep2[c(4,10)], by='station_name') %>% 
+  arrange(transmitter_id)
+```
+
+# Split out into day vs night
+```{r}
+day_ri <-
+  diurnal_ri %>%
+  filter(tod == 'Day') %>% 
+  distinct()
+
+night_ri <-
+  diurnal_ri %>%
+  filter(tod == 'Night') %>% 
+  distinct()
+```
+
+# Calculate days at large and Ri by day vs night
+## Day
+```{r}
+day_ri <- 
+day_ri %>% 
+  group_by(station_name, transmitter_id, tag_date) %>%
+  mutate(detectiondays_station = n()) %>%
+  #ungroup() %>%
+  dplyr::select(!c(detection_date)) %>%
+  distinct() %>%
+  mutate(deploymentdays_station = as.integer(recovery_date - tag_date),
+         ri_station = detectiondays_station/deploymentdays_station)
+```
+
+## Night
+```{r}
+night_ri <-
+  night_ri %>% 
+  group_by(station_name, transmitter_id, tag_date) %>%
+  mutate(detectiondays_station = n()) %>%
+  #ungroup() %>%
+  dplyr::select(!c(detection_date)) %>%
+  distinct() %>%
+  mutate(deploymentdays_station = as.integer(recovery_date - tag_date),
+         ri_station = detectiondays_station/deploymentdays_station)
+```
+
+# Bind back to one df
+```{r}
+daynight_ri <- 
+  day_ri %>% 
+  bind_rows(night_ri)
+```
+
+
+# Now filter out by taxa/organism type etc
+
+## Teleost Ri day vs night - this is effectively installation Ri (presence vs absence over the whole of Osprey)
+```{r}
+teleost_ri_dn <- 
+  daynight_ri %>% 
+  filter(Org_type == "Teleost") %>% 
+  group_by(tod) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+```
+
+# GT Ri day vs night
+```{r}
+gt_ri_dn <- 
+daynight_ri %>% 
+  filter(Scientific_name == 'Caranx ignobilis') %>% 
+  group_by(tod) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+
+gt_ri_dn %>% 
+  ggplot(aes(x = tod, y = mean)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri", x = "Time of day")
+```
+Looking pretty even
+
+
+# Black trevally Ri day vs night 
+```{r}
+lugub_ri_dn <- 
+daynight_ri %>% 
+  filter(Scientific_name == 'Caranx lugubris') %>% 
+  group_by(tod) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+
+lugub_ri_dn %>% 
+  ggplot(aes(x = tod, y = mean)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri", x = "Time of day")
+```
+Pretty similar - maybe more present in the day time
+
+# Trout Ri day vs night - probably the most interesting
+```{r}
+trout_ri_dn <- 
+daynight_ri %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  group_by(tod) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+
+trout_ri_dn %>% 
+  ggplot(aes(x = tod, y = mean)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri", x = "Time of day")
+```
+Note the small Ri for day time is caused by 2 observations at just after 6am.
+
+# Can check by running:
+```{r}
+alldata %>%
+  filter(Common_name == "Footballer trout") %>% 
+  dplyr::select(transmitter_id, 
+                #receiver_name,                                                       # VR2W serial # - don't want this in
+                detection_timestamp,                                                  # 
+                installation_name, station_name, station_name_long,                   # Variables relating to detecting receiver
+                #deploymentdatetime_timestamp, recoverydatetime_timestamp,            # Will add in deployment dates later (for whole proj, not individual deps)
+                Common_name, Scientific_name, Date, 
+                Location, Site, Sex, Org_type) %>%                                    # Leave in the orrganism and tagging info
+  mutate(hour = hour(detection_timestamp)) %>% 
+  mutate(tod = case_when(hour %in% (6:18) ~ "Day",
+                         TRUE ~ "Night")) %>% 
+  filter(tod == "Day")
+```
+
+
+# What about diurnal Ri by station?
+
+# GT Ri day vs night by station
+```{r gt-dn-ri-plot, fig.width = 9}
+gt_ri_dn_stn <- 
+daynight_ri %>% 
+  filter(Scientific_name == 'Caranx ignobilis') %>% 
+  group_by(tod, station_name_long, station_name) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))#
+
+gt_ri_dn_plot <- 
+gt_ri_dn_stn %>% 
+  ggplot(aes(x = station_name, y = mean, fill = tod)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  scale_fill_manual(values = c("white", "slateblue4")) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri", x = "Time of day") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  theme(legend.title = element_blank(),
+        legend.position = c(.8,.8))
+
+ggsave(gt_ri_dn_plot, filename = "../output/ri_dn_gt_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+```
+
+# Black trevally Ri day vs night by station
+```{r}
+lugub_ri_dn_stn <- 
+daynight_ri %>% 
+  filter(Scientific_name == 'Caranx lugubris') %>% 
+  group_by(tod, station_name_long, station_name) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+
+lugub_ri_dn_plot <- 
+lugub_ri_dn_stn %>% 
+  ggplot(aes(x = station_name, y = mean, fill = tod)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  scale_fill_manual(values = c("white", "slateblue4")) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,0.6), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  labs(y= "Ri", x = "Time of day") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  theme(legend.title = element_blank(),
+        legend.position = c(.8,.8))
+
+lugub_ri_dn_plot
+ggsave(lugub_ri_dn_plot, filename = "../output/ri_dn_lugub_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+```
+Pretty similar - maybe more present in the day time
+
+# Trout Ri day vs night - probably the most interesting
+```{r}
+trout_ri_dn_stn <- 
+daynight_ri %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  group_by(tod, station_name_long, station_name) %>% 
+  summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station))
+
+trout_ri_dn_plot <- 
+trout_ri_dn_stn %>% 
+  ggplot(aes(x = station_name, y = mean, fill = tod)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  scale_fill_manual(values = c("white", "slateblue4")) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  labs(y= "Ri", x = "Time of day") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  theme(legend.title = element_blank())
+
+trout_ri_dn_plot
+ggsave(trout_ri_dn_plot, filename = "../output/ri_dn_trout_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+```
+
+
+
+
+
+
+
+

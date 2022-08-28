@@ -1,0 +1,229 @@
+---
+title: "Mapping Ri"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width = 6, fig.height = 3.75)
+options(knitr.duplicate.label = 'allow')
+#rm(list=ls())
+#getwd()
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(cowplot)
+library(ggmap)    # for fortifying shapefiles
+library(ggsn) # Package with built in scale bar and north point
+library(readxl)
+library(scatterpie)
+library(collapse)
+library(tidyverse)
+library(rayshader)
+```
+
+# First need a base map object(s)
+```{r}
+world <- map_data("world")
+straya <- world %>% 
+  filter(region == 'Australia')
+```
+
+
+
+If you want the object world for plotting down the line..
+
+
+## Load in shape files for reefs and fortify
+```{r shape-files-load, message=FALSE, warning=FALSE, include=FALSE}
+
+# Coral Sea shape files
+cs_dryreef_df <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% fortify # Don't need dry reef file
+cs_reef_df <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef") %>% fortify # Can make fillable polygons with this df
+#cs_cays_df <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_cay") %>% fortify # Don't need the cays for this scale of mapping
+
+# GBR
+#gbr_dryreef_df <- readOGR("../data/3dgbr_geomorph/shape", "gbr_dryreef") %>% fortify # gbr_dryreef is too big and just duplicates the feats file
+gbr_feats_df <- readOGR("../data/3dgbr_geomorph/shape", "gbr_features") %>% fortify # Outlines of main reefs
+gbr_shelf_df <- readOGR("../data/3dgbr_geomorph/shape", "gbr_shelf") %>% fortify # Includes inshore detail (so can use to map coastline better than straya object)
+
+# Park boundaries - don't need for this as we are so zoomed in they aren't captured
+#csmp_df <- readOGR("../data/3dgbr_geomorph/shape", "qld_gbrwha_cscz") %>% fortify
+#gbr_df <- readOGR("../data/3dgbr_geomorph/shape", "gbrwha_outer") %>% fortify
+```
+
+# Shape file adjustments
+For plotting Ri, we are only interested in the 4 reefs where we tagged organisms/had the array deployed and not the ones outside of this.
+Would be good to shrink the gbr feats object a bit but it doesn't work
+```{r}
+#cs_dryreef_df <-  cs_dryreef_df %>% filter(long <149) # Not relevant. Also if plotting eastern reefs, the dry reefs layer is best
+cs_reef_df <- cs_reef_df %>% filter(long <149)
+straya <- world %>% filter(region == 'Australia') %>% filter(lat >-18)
+
+```
+
+
+# Pull in Ri
+Sharks and f
+```{r run-wrangle, message=FALSE, warning=FALSE, include=FALSE}
+source(knitr::purl("ri_sharks.Rmd", quiet=TRUE))
+```
+
+# Additional plotting variables
+## Grey reef sharks
+```{r}
+# Assign reef location
+grs_installation_stats <- 
+grs_installation_stats %>% 
+  mutate(lat = case_when(grepl("Osprey", installation_name) ~ -13.88,
+                       grepl("Bougain", installation_name) ~ -15.5,
+                       grepl("Holmes", installation_name) ~ -16.48,
+                       grepl("Flind", installation_name) ~ -17.58),
+       long = case_when(grepl("Osprey", installation_name) ~ 146.60,
+                        grepl("Bougain", installation_name) ~ 147.1,
+                        grepl("Holmes", installation_name) ~ 147.98,
+                        grepl("Flind", installation_name) ~ 148.45))
+
+# Assign label location
+grs_installation_stats <- 
+grs_installation_stats %>% 
+mutate(label_lat = case_when(grepl("Osprey", installation_name) ~ -14.5,
+                        grepl("Bougain", installation_name) ~ -15.5,
+                        grepl("Holmes", installation_name) ~ -16.5,
+                        grepl("Flind", installation_name) ~ -17.5),
+       label_long = case_when(grepl("Osprey", installation_name) ~ 149,
+                         grepl("Bougain", installation_name) ~ 149,
+                         grepl("Holmes", installation_name) ~ 149,
+                         grepl("Flind", installation_name) ~ 149))
+
+
+# Assign bubble position
+grs_installation_stats <- 
+grs_installation_stats %>% 
+mutate(lat1 = case_when(grepl("Osprey", installation_name) ~ -14.5,
+                        grepl("Bougain", installation_name) ~ -15.5,
+                        grepl("Holmes", installation_name) ~ -16.5,
+                        grepl("Flind", installation_name) ~ -17.5),
+       long1 = case_when(grepl("Osprey", installation_name) ~ 150.5,
+                         grepl("Bougain", installation_name) ~ 150.5,
+                         grepl("Holmes", installation_name) ~ 150.5,
+                         grepl("Flind", installation_name) ~ 150.5))
+grs_installation_stats
+```
+
+
+
+
+
+## Silver tip sharks
+```{r}
+# Assign reef location
+silvers_installation_stats <- 
+  silvers_installation_stats %>% 
+  mutate(lat = case_when(grepl("Osprey", installation_name) ~ -13.88,
+                         grepl("Bougain", installation_name) ~ -15.5,
+                         grepl("Holmes", installation_name) ~ -16.48,
+                         grepl("Flind", installation_name) ~ -17.58),
+         long = case_when(grepl("Osprey", installation_name) ~ 146.60,
+                          grepl("Bougain", installation_name) ~ 147.1,
+                          grepl("Holmes", installation_name) ~ 147.98,
+                          grepl("Flind", installation_name) ~ 148.45))
+
+# Assign label location
+silvers_installation_stats <- 
+  silvers_installation_stats %>% 
+  mutate(label_lat = case_when(grepl("Osprey", installation_name) ~ -14.5,
+                               grepl("Bougain", installation_name) ~ -15.5,
+                               grepl("Holmes", installation_name) ~ -16.5,
+                               grepl("Flind", installation_name) ~ -17.5),
+         label_long = case_when(grepl("Osprey", installation_name) ~ 149,
+                                grepl("Bougain", installation_name) ~ 149,
+                                grepl("Holmes", installation_name) ~ 149,
+                                grepl("Flind", installation_name) ~ 149))
+
+
+# Assign bubble position
+silvers_installation_stats <- 
+  silvers_installation_stats %>% 
+  mutate(lat1 = case_when(grepl("Osprey", installation_name) ~ -14.5,
+                          grepl("Bougain", installation_name) ~ -15.5,
+                          grepl("Holmes", installation_name) ~ -16.5,
+                          grepl("Flind", installation_name) ~ -17.5),
+         long1 = case_when(grepl("Osprey", installation_name) ~ 151.5,
+                           grepl("Bougain", installation_name) ~ 151.5,
+                           grepl("Holmes", installation_name) ~ 151.5,
+                           grepl("Flind", installation_name) ~ 151.5))
+silvers_installation_stats
+
+
+
+```
+
+
+# Basemap
+```{r}
+ri_basemap <- ggplot() +
+  geom_path(data = gbr_shelf_df, aes(x = long, y = lat, group = group), color = 'grey20', size = .2) +
+  geom_polygon(data = gbr_feats_df, aes(x = long, y = lat, group = group), fill = 'grey50', size = .1) +
+  geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), fill = 'grey90', size = .1,  alpha = .4) +
+  geom_path(data = gbr_feats_df, aes(x = long, y = lat, group = group), color = 'grey20', size = .1) +
+  geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'black', fill = 'gray75', size = .2) + 
+  theme(axis.title = element_blank(), 
+        #axis.text = element_blank(),
+        #axis.ticks = element_blank(),
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  coord_map(ylim = c(-18, -13.5), xlim = c(145.5, 149))
+
+ri_basemap
+```
+
+
+
+```{r}
+ri_map <- 
+ri_basemap +
+  geom_segment(data = grs_installation_stats, aes(x = long, y = lat, xend = label_long-0.1, yend = label_lat), size = .3,  col = "grey60") +
+  geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'black', fill = 'gray75', size = .2) +
+  geom_point(data = grs_installation_stats, aes(x = long1-1.4, y = lat1, size = mean, fill = installation_name), stroke = 0.5, pch = 21) +
+  #geom_label(data = grs_installation_stats, aes(x = label_long , y = label_lat, label = installation_name), fill = "white") +
+  geom_point(data = silvers_installation_stats, aes(x = long1-1.3, y = lat1, size = mean, fill = installation_name), stroke = 0.5, pch = 21) +
+  scale_size(range = c(6.5, 41)) +
+  scale_shape_manual(name = 'Reef') +
+  scale_fill_manual(values =  installation_palette) +
+  geom_text(data = grs_installation_stats, aes(x = long1, y = lat1, label = mean)) +
+  geom_text(data = silvers_installation_stats, aes(x = long1, y = lat1, label = mean)) +
+  theme(legend.position = 'none')
+
+#ggsave("../output/ri_map.png", plot = ri_map, width = 220, height = 138, units = "mm")
+
+ri_map
+
+```
+
+
+
+

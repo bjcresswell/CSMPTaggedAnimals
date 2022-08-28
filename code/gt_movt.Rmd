@@ -1,12 +1,12 @@
 ---
-title: "Teleost Lunar Spawning Movements"
+title: "GT movement timing analysis"
 author: "Ben Cresswell"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 knit: (function(inputFile, encoding) { 
       out_dir <- "../output";
       rmarkdown::render(inputFile,
                         encoding=encoding, 
-                        output_file=file.path(dirname(inputFile), out_dir, 'teleost_lunar_spawning.html')) })
+                        output_file=file.path(dirname(inputFile), out_dir, 'GT-movement-timing.html')) })
 output: 
  html_document:
     code_folding: show
@@ -66,7 +66,99 @@ Rationale for this part of the analysis is the single coral trout (Plectropomus 
 source(knitr::purl("teleost_movement_timeanddistance.Rmd", quiet=TRUE))
 ```
 
-### Subset trout data 
+# Annual detections
+```{r}
+gt_annual <- 
+  teleosts %>% 
+  filter(Scientific_name == 'Caranx ignobilis') %>%
+  mutate(detection_date = as.Date(detection_timestamp)) %>% 
+  dplyr::select(transmitter_id, station_name, detection_date) %>% 
+  distinct() %>% 
+  arrange(detection_date)
+
+gt_annual
+```
+
+# Plot by station name
+```{r}
+gt_annual %>% 
+  ggplot(aes(x = detection_date, y = transmitter_id)) + 
+  xlab("Date") + 
+  ylab("Detections") +
+  geom_point() +
+  #theme(axis.text.y = element_blank()) +
+  theme(panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  facet_wrap(~station_name)
+
+```
+
+# Plot by individual
+
+```{r fig.width=16}
+gt_annual %>% 
+  ggplot(aes(x = detection_date, y = station_name)) + 
+  xlab("Date") + 
+  ylab("Detections") +
+  geom_point() +
+  #theme(axis.text.y = element_blank()) +
+  theme(panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  facet_wrap(~transmitter_id)
+```
+
+
+# Get latest and earliest detections in the day for the trout
+```{r}
+teleosts %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  filter(hour %in% (6:8)) # Morning
+  #filter(hour %in% (17:21)) # Evening - none
+  
+```
+
+# Plot trout presence on histogram
+```{r}
+time_levels <- c('7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '0', '1', '2', '3', '4', '5', '6')
+
+trout_hourly <- 
+teleosts %>% 
+  filter(Common_name == "Footballer trout") %>% 
+  mutate(hour = factor(hour, levels = time_levels)) %>% 
+  dplyr::select(station_name, hour) %>% 
+  group_by(hour) %>% 
+  ggplot(aes(hour)) +
+  annotate("rect", xmin = 12.5, xmax = 25, ymin = 0, ymax = 40, fill = "grey") +
+  geom_bar(stat = "count") +
+  scale_x_discrete(drop = FALSE) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,40), breaks = c(5, 10, 15, 20, 25, 30)) +
+  theme(panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "bottom") +
+  labs(y= "Detections", x = "Time of day") +
+  annotate("text", x = 6, y = 38, label = "Day", parse = TRUE) +
+  annotate("text", x = 19, y = 38, label = "Night", parse = TRUE) 
+
+ggsave(trout_hourly, filename = "../output/trout_hourly.png", width = 160, height = 70, units = 'mm', dpi = 300)
+
+trout_hourly
+```
+
+# Map against lunar data
+  
+- Lunar data downloaded from the NASA's HORIZON platform: https://ssd.jpl.nasa.gov/horizons/
+- Includes 3 metrics of lunar phase:  
+    1. Percent of moon illuminated (Illu%) - a basic measure of how much of the moon's surface is lit up by the sun
+    2. Surface brightness (S-brt) - takes into account some other influences on overall observed brightness
+    3. Apparent magnitude (APmag) - another measure of brightness of moon
+- Will have a look at all 3 and see if one seems more appropriate..    
+
+
+
+### First need to subset trout data 
 ```{r}
 trout <- 
   teleosts %>% 
@@ -80,35 +172,15 @@ trout <-
   complete(date = seq.Date(min(date), max(date), by="day")) %>% 
   mutate_if(is.numeric, ~replace(., is.na(.), -20)) %>% 
   mutate_if(is.character, ~replace(., is.na(.), 'N'))
-```
+```    
 
 
-# Quick plot
-To see presence vs absence
-```{r}
-trout %>% 
-  ggplot(aes(x = date, y = present_num)) + 
-  xlab("Date") + 
-  ylab("Trout") +
-  ylim(0, 2) +
-  geom_point()
-```
-  
-- Well spread out with some gaps during parts of the year
+### Then load lunar data:
 
-# Map against lunar data
-  
-- Lunar data downloaded from the NASA's HORIZON platform: https://ssd.jpl.nasa.gov/horizons/
-- Includes 3 metrics of lunar phase:  
-    1. Percent of moon illuminated (Illu%) - a basic measure of how much of the moon's surface is lit up by the sun
-    2. Surface brightness (S-brt) - takes into account some other influences on overall observed brightness
-    3. Apparent magnitude (APmag) - another measure of brightness of moon
-- Will have a look at all 3 and see if one seems more appropriate..    
-    
-### To load lunar data:
 ```{r}
 moon <- read_excel('../data/osprey_lunar_det.xlsx', trim_ws = TRUE) %>% 
-  mutate(date = lubridate::ymd(date))
+  mutate(date = lubridate::ymd(date)) %>% 
+    filter(date > "2021-03-16")
 moon
 ```
   
@@ -117,15 +189,23 @@ moon
 
 ### EDA - compare all the moon phase metrics against presence of trout
 ```{r}
+trout_lunar <- 
 moon %>% 
   ggplot() + 
-  geom_line(aes(x = date, y = APmag), colour = 'red') +
-  geom_line(aes(x = date, y = `S-brt`), colour = 'black') +
-  geom_line(aes(x = date, y = `Illu%`), colour = 'blue') +
+  geom_line(aes(x = date, y = APmag+8), colour = 'red') +
+  #geom_line(aes(x = date, y = `S-brt`), colour = 'black') +
+  #geom_line(aes(x = date, y = `Illu%`), colour = 'blue') +
   geom_point(data = trout, mapping = (aes(x = date, y = present_num))) + 
   xlab("Date") + 
-  ylab("Value") +
-  ylim(-13, 100) 
+  ylab("App. lunar mag") +
+  ylim(-5, 5) +
+  theme(axis.text.y = element_blank()) +
+  theme(panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"))
+  
+trout_lunar
+ggsave(trout_lunar, filename = "../output/trout_lunar.png", width = 160, height = 50, units = 'mm', dpi = 300)
 ```
  
 - All look pretty similar in terms of cycle. Could pick any of them I think
@@ -143,6 +223,30 @@ moon <-
                                `Illu%` < 25 ~ 'New')) %>% 
   mutate_if(is.character, ~replace(., is.na(.), 'Mid'))
 ```
+
+
+### Plot again
+```{r}
+trout1 <- 
+  trout %>% 
+  filter(present == "Y")
+
+moon %>% 
+ggplot() + 
+  geom_bar(aes(x = date, colour = moonstate, fill = moonstate)) +
+  scale_color_manual(values = c("grey20", "grey40", "black")) +
+  scale_fill_manual(values = c("grey20", "grey40", "black")) +
+  geom_bar(data = trout1, mapping = (aes(x = date)), fill = "red") + 
+  scale_y_discrete() +
+  xlab("Date") + 
+  ylab("Value")
+
+
+```
+
+
+
+
 
 
 ### Next need to replace that -20 that I jankily used for the abacus plot earlier or the model/plots won't work

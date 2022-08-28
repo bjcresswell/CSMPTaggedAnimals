@@ -80,16 +80,31 @@ source("ri_station.R")
 
 ## Comparing installation Ri between teleost taxa
 ```{r teleost-inst-ri-plot, echo=FALSE, message=FALSE, warning=FALSE}
-  installation_ri %>% 
+teleost_installation_ri <-   
+installation_ri %>% 
   filter(Org_type == 'Teleost') %>% 
   group_by(Scientific_name) %>% 
   summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
-  print %>% 
+  mutate_if(is.numeric, round, 2) %>% 
+  print
+
+teleost_installation_ri %>% 
+  write.csv("../output/ri_installation_teleosts.csv")
+
+teleost_installation_ri_plot <- 
+teleost_installation_ri %>% 
   ggplot(aes(x = Scientific_name, y = mean)) +
-  geom_bar(stat="identity", position="dodge", color="black") +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9))+
-  ggtitle("Installation Ri (Osprey) for teleost taxa") +
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,.7), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  #ggtitle("Installation Ri (Osprey) for teleost taxa") +
   labs(y= "Ri (mean ± SE)", x = "Taxa")
+ggsave(teleost_installation_ri_plot, filename = "../output/inst_ri_teleost_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+
 ```
   
 #### Notes    
@@ -138,15 +153,32 @@ station_ri_trout %>%
 
 ### Giant trevally (Caranx ignobilis)
 ```{r gt-bar, echo=FALSE, message=FALSE, warning=FALSE}
-station_ri_gts %>% 
+station_ri_stats_gts <- 
+  station_ri_gts %>% 
   group_by(station_name, station_name_long) %>% 
   summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station)) %>% 
-  print() %>% 
+  mutate_if(is.numeric, round, 2) %>% 
+  print
+
+station_ri_stats_gts %>% 
+  write.csv("../output/ri_station_gts.csv")
+
+ri_gts_bar <- 
+station_ri_stats_gts %>% 
   ggplot(aes(x = station_name, y = mean)) +
-  geom_bar(stat="identity", position="dodge", color="black") +
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
-  #ggtitle("Station Ri - Caranx ignobilis") +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9))+
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,0.4), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "bottom") +
   labs(y= "Ri (mean ± SE)", x = "Osprey station code")
+
+ri_gts_bar
+
+ggsave(ri_gts_bar, filename = "../output/ri_gts_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 ```
   
 #### Notes    
@@ -156,15 +188,32 @@ station_ri_gts %>%
 
 ### Black trevally (Caranx lugubris)
 ```{r lug-bar, echo=FALSE, message=FALSE, warning=FALSE}
+station_ri_stats_lugub <- 
 station_ri_lugub %>% 
   group_by(station_name, station_name_long) %>% 
   summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station)) %>% 
-  print() %>% 
+  mutate_if(is.numeric, round, 2) %>% 
+  print
+
+station_ri_stats_lugub %>% 
+  write.csv("../output/ri_station_lugub.csv")
+
+ri_lugub_bar <- 
+station_ri_stats_lugub %>% 
   ggplot(aes(x = station_name, y = mean)) +
-  geom_bar(stat="identity", position="dodge", color="black") +
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
-  #ggtitle("Station Ri - Caranx lugubris") +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9))+
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,0.6), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "bottom") +
   labs(y= "Ri (mean ± SE)", x = "Osprey station code")
+
+ri_lugub_bar
+
+ggsave(ri_lugub_bar, filename = "../output/ri_lugub_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 ```
   
 #### Notes  
@@ -172,15 +221,33 @@ station_ri_lugub %>%
 
 ### Coral trout (Plectropomus laevis)
 ```{r trout-bar, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+station_ri_stats_trout <- 
 station_ri_trout %>% 
   group_by(station_name, station_name_long) %>% 
   summarise(mean = mean(ri_station), sd = sd(ri_station), se = std.error(ri_station)) %>% 
-  print() %>% 
+  mutate_if(is.numeric, round, 2) %>% 
+  print
+
+station_ri_stats_trout %>% 
+  write.csv("../output/ri_station_trout.csv")
+
+ri_trout_bar <- 
+station_ri_stats_trout %>% 
   ggplot(aes(x = station_name, y = mean)) +
-  geom_bar(stat="identity", position="dodge", color="black") +
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
-  #ggtitle("Station Ri - Caranx lugubris") +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9))+
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,0.1), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "bottom") +
   labs(y= "Ri (mean ± SE)", x = "Osprey station code")
+
+ri_trout_bar
+
+ggsave(ri_trout_bar, filename = "../output/ri_trout_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+
 ```
   
 #### Notes  

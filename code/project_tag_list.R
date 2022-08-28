@@ -43,14 +43,14 @@ project_tags_all <- project_IDs %>%
 # 137 tags total (inc sensor tags)
 
 # List of project tags in sharks
-project_tags_sharks <- project_tag_list %>% 
+project_tags_sharks <- project_tags_all %>% 
   filter(Org_type == 'Elasmobranch') #%>% 
   #distinct(transmitter_id)
 #write.csv(project_sharks, file = '../data/RData/project_sharks.csv')
 # 114 tags in sharks total (inc sensor tags)
 
 # List of project tags in  teleosts
-project_tags_teleosts <- project_tag_list %>% 
+project_tags_teleosts <- project_tags_all %>% 
   filter(Org_type == 'Teleost')# %>% 
   #distinct(transmitter_id)
 # 23 tags in telosts total (inc sensor tags)
@@ -62,7 +62,7 @@ project_tags_teleosts <- project_tag_list %>%
 
 # All animals
 project_serials <- 
-  project_tag_list %>%
+  project_tags_all %>%
   filter(Type != "press")
 # 112 total
 
@@ -79,7 +79,7 @@ project_serials_teleosts <-
 # 137 - 112 = 25 animals with tags in: 10 teleost and 15 sharks
 # Can check:
 sensortag_organisms <- 
-project_tag_list %>% 
+  project_tags_all %>% 
   filter(Type %in% c("press", "temp"))
 
 # By reef

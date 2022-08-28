@@ -1,35 +1,8 @@
----
-title: "Analysing residency indices - Sharks"
-author: "Ben Cresswell"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-knit: (function(inputFile, encoding) { 
-      out_dir <- "../output";
-      rmarkdown::render(inputFile,
-                        encoding=encoding, 
-                        output_file=file.path(dirname(inputFile), out_dir, 'Ri_shark_analysis.html')) })
-output: 
- html_document:
-    code_folding: show
-    collapse: no
-    df_print: paged
-    fig_caption: yes
-    fig_height: 4
-    fig_width: 4
-    highlight: textmate
-    theme: spacelab
-    toc: yes
-    toc_float: yes
-editor_options: 
-  chunk_output_type: inline
----
-
-
-```{r setup, include=FALSE}
+## ----setup, include=FALSE--------------------------------------------------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
-```
 
 
-```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE----------------------------------------------------------------------------------
 # Packages
 library(knitr)
 library(kableExtra)
@@ -42,55 +15,22 @@ library(ggmap)    # for fortifying shapefiles
 library(readxl)
 library(scatterpie)
 library(plotrix)   # Calculates SE
-library(patchwork)
 library(collapse)
 library(magrittr)
 library(tidyverse)
-```
 
-```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+## ----housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------
 # Housekeeping
 #rm(list=ls())
 #getwd()
-```
 
 
-# Residency index
-
-This doc contains Ri analyses for sharks, following email discussion 7 Aug 2022:
-
-- Sharks #1: Ri for each species for each reef - covered in this doc/script
-- Sharks #2: large-scale movement map (separate doc/script)  
-- Sharks #3: blue-water movements within Holmes and Flinders movement (separate doc/script)  
-  
-
-The residency index is the number of days an animal was detected at each receiver (site or station residency) or reef (reef or installation residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).
-
-
-
-# Data load and wrangling
-
-Data wrangling and station/installation Ri calculations conducted in separate scripts
-```{r load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------------
 source("ri_installation.R")
-```
 
 
-# Relevel installation_name
-```{r}
-installation_ri %$% 
-  summary(installation_name)
-
-installation_ri <- installation_ri %>% 
-  mutate(installation_name = fct_relevel(installation_name, c('Osprey', 'Bougainville', 'Holmes', 'Flinders'))) 
-```
-
-
-# Split up into taxa groups {.tabset .tabset-faded}
-
-## Grey reef sharks  
-- Dataframe preview:  
-```{r greys-ri, echo=FALSE, message=FALSE, warning=FALSE}
+## ----greys-ri, echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------------------
 ri_greys <- 
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus amblyrhynchos')
@@ -100,13 +40,9 @@ ri_greys_table <-
   head() %>% 
   kbl() %>%
   kable_minimal()
-```
 
 
-## Silver tips  
-- Dataframe preview:  
-
-```{r silvers-ri, echo=FALSE, message=FALSE, warning=FALSE}
+## ----silvers-ri, echo=FALSE, message=FALSE, warning=FALSE------------------------------------------------------------------------------------------------------
 ri_silvers <- 
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus albimarginatus')
@@ -117,16 +53,9 @@ ri_silvers_table <-
   kbl() %>%
   kable_minimal()
 # Note: this kable code makes for a decent table when knitted but horrible to try to produce stand-alone table
-```
 
 
-# Summary stats 
-  
-- For both taxa, mean Ri (± S.E.) are presented by reef and sex:  
-
-## C. amblyrhynchos {.tabset .tabset-faded}
-###  Reef (installation)
-```{r grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------
 grs_installation_stats <- 
   ri_greys %>% 
   group_by(installation_name) %>% 
@@ -153,12 +82,9 @@ ri_greys_bar <-
 ri_greys_bar
   
 ggsave(ri_greys_bar, filename = "../output/ri_greys_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
 
 
-
-### Sex
-```{r grs-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----grs-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------
 grs_sex_stats <- 
   ri_greys %>% 
   group_by(Sex) %>% 
@@ -190,20 +116,17 @@ grs_ri_sex_bar
 
 ggsave(grs_ri_sex_bar, filename = "../output/ri_greys_sex_bar.png", width = 80, height = 100, units = 'mm', dpi = 600)
 
-```
 
-### Plot together
-```{r grs-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+## ----grs-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------
+library(patchwork)
 greys_riplot <- 
 ri_greys_bar + grs_ri_sex_bar +
   plot_layout(widths = c(2,1))
 ggsave(greys_riplot, filename = "../output/riplot_greys.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
 
 
-## C. albimarginatus {.tabset .tabset-faded}
-###  Reef (installation)
-```{r silvers-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----silvers-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
 silvers_installation_stats <- 
   ri_silvers %>% 
   group_by(installation_name) %>% 
@@ -226,12 +149,9 @@ ri_silvers_bar <-
         plot.background = element_rect(fill = "transparent", colour = "transparent"),
         legend.position = "bottom")  +
   labs(y= "Ri (mean ± SE)", x = "Installation (reef)")
-ggsave(ri_silvers_bar, filename = "../output/ri_silvers_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
 
 
-### Sex
-```{r silvers-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----silvers-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
 silvers_sex_stats <- 
   ri_silvers %>% 
   group_by(Sex) %>% 
@@ -259,25 +179,13 @@ silvers_ri_sex_bar <-
 ggsave(silvers_ri_sex_bar, filename = "../output/ri_silvers_sex_bar.png", width = 80, height = 100, units = 'mm', dpi = 600)
 silvers_ri_sex_bar
 
-```
 
-### Plot together
-```{r silver-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+## ----silver-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
+library(patchwork)
 silvers_riplot <- 
 ri_silvers_bar + silvers_ri_sex_bar +
   plot_layout(widths = c(2,1))
 
 ggsave(silvers_riplot, filename = "../output/riplot_silvers.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
-
-# Observations
-  
-- Grey reef sharks more uniformly resident across reefs and also between sexes, with highest residency at Osprey Reef and in females
-- Silver tip sharks pretty much show the opposite pattern: much more variable residency, with LOWEST residency at Osprey Reef and in famales
-
-
-
-
-
-
 

@@ -13,8 +13,8 @@
 # Load main data file
 load(file = "../data/RData/alldata.RData")
 
-# And for other required data, run the project_tag_list script:
-source("../code/project_tag_list.R")
+# And for other required data, run the project_tags_all script:
+source("../code/project_tags_list.R")
 
 # Select only variables and organisms required for this analysis
 station_ri <- alldata %>%
@@ -60,7 +60,7 @@ station_ri <-
 ## Check
 head(station_ri)
 
-# Calculate days at large and Ri by installation
+# Calculate days at large and Ri by station
 station_ri <-
   station_ri %>%
   group_by(station_name, transmitter_id, tag_date) %>%
@@ -78,18 +78,21 @@ station_ri %$%
 
 # Next, we should check missing IDs against project tag list
 missing_from_ri <- 
-  project_tag_list %>% 
+  project_tags_all %>% 
   anti_join(station_ri, by = "transmitter_id")
-## 12 transmitter_IDs (9 actual animals) missing - same as identified by tag_asst.Rmd so we already knew about these (see that Rmd for more info)
+## There should be 9 actual animals) missing - same as identified by tag_asst.Rmd so we already knew about these (see that Rmd for more info)
+## Plus: half of the sensor tags (the temp ones)
 
+
+# SINCE I WENT BACK AND WRANGLED OUT THE EXTRA SENSOR TAGS AT THE BEGINNING, DON'T THINK WE NEED THIS ANY MORE:
 
 # Now need to deal with duplicate serials, as T/P tagged organisms will have tags counted twice
 
 # First need to pull out the T/P entries into a separate df:
 
 sensor_station_ri <-                                                   # Extract just the T/P tags from the main df
-  project_tag_list %>%                                       # Need to get the serial number and tag info
-  dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tag_list
+  project_tags_all %>%                                       # Need to get the serial number and tag info
+  dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tags_all
   merge(station_ri, by = 'transmitter_id') %>%        # and merge 
   filter(Type != 'pinger') %>%                             # Then pull out just the T/P entries - 44 of them which will become 22
   group_by(Serial, station_name) %>%                                     # Group by the Serial #
@@ -99,17 +102,17 @@ sensor_station_ri <-                                                   # Extract
 # And need to do the reverse on station_ri:
 
 nonsensor_station_ri <- 
-  project_tag_list %>%                                       # Need to get the serial number and tag info
-  dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tag_list
+  project_tags_all %>%                                       # Need to get the serial number and tag info
+  dplyr::select('transmitter_id', 'Type', 'Serial') %>%    # back out of the project_tags_all
   merge(station_ri, by = 'transmitter_id') %>%        # and merge 
   filter(Type == 'pinger')
 
 # And then combine back together
-station_ri <- nonsensor_station_ri %>% 
-  bind_rows(sensor_station_ri)
+#station_ri <- nonsensor_station_ri %>% 
+#  bind_rows(sensor_station_ri)
 
 
 #save(station_ri, file = "../data/RData/station_ri.RData")
-write_csv(station_ri, file = "../output/station_Ri.csv")
+#write_csv(station_ri, file = "../output/station_Ri.csv")
 
 

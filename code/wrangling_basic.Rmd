@@ -154,7 +154,6 @@ raw_detected_tags <- alldata %>%
   merge(regional_tag_list) %>% 
   droplevels()
 
-
 raw_detected_tags %$%
   summary(Location)
 ```
@@ -180,23 +179,158 @@ alldata %>%
 str(alldata$transmitter_id)
 ```
 
-## And save for use elsewhere
+# Final step - merge detections for sensor tags into one transmitter_ID 
+- Need to do this for the main analysis but let's split off sensor data into a separate df so we can analyse that elsewhere..
+
+```{r}
+sensor_data <- 
+  alldata %>% 
+  filter(!is.na(Sensor.Value)) %>% 
+  droplevels()
+
+save(sensor_data, file = "../data/RData/sensor_data.RData")
+write_csv(sensor_data, file = "../data/RData/sensor_data.csv")
+```
+
+
+### Going to need the project tag list to see which ones are ours..
+```{r load-proj-tags, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+source("../code/project_tag_list.R")
+```
+
+
+## Split up sensor data
+```{r}
+# Grab out just our own organisms (don't want to do any manipulations on the others - we don't know what tags go with what other tags, if any)
+our_sensor_data <- 
+sensor_data %>% 
+  merge(project_tags_all[11], by = "transmitter_id")
+
+# And the sensor tags that we don't own (we'll add these back in to the main alldata df)
+other_sensor_data <- 
+  sensor_data %>% 
+  anti_join(our_sensor_data, by = "transmitter_id")
+```
+
+## Assign just one transmitter id to each sensor tag
+```{r}
+our_sensor_data %>% 
+  dplyr:: select(transmitter_id, Serial, Org_type, Type) %>% 
+  distinct()
+```
+Sharks: a lower-even ID for temp goes with a higher-odd ID for press: Need to +1 to every temp/even ID
+Teleosts: a lower-odd ID for temp goes with a higher-even ID for press: Need to +1 to every temp/odd ID
+
+# Need to filter this out then...
+
+# Sharks
+```{r}
+shark_temp_data <- 
+  sensor_data %>%
+  filter(Org_type == "Elasmobranch") %>% 
+  filter(ID %% 2 != 1)  %>% 
+  #dplyr::select(transmitter_id) %>% 
+  mutate(ID = ID+1) %>% 
+  mutate(transmitter_id = factor(paste(Freq, Space, ID, sep = '-')))
+
+shark_press_data <- 
+  sensor_data %>%
+  filter(Org_type == "Elasmobranch") %>% 
+  filter(Type =="press") 
+
+
+shark_sensor_data <- 
+  shark_press_data %>% 
+  bind_rows(shark_temp_data)
+
+```
+
+# Teleosts
+```{r}
+teleost_temp_data <- 
+  sensor_data %>%
+  filter(Org_type == "Teleost") %>% 
+  filter(ID %% 2 == 1)  %>% 
+  #dplyr::select(transmitter_id) %>% 
+  mutate(ID = ID+1) %>% 
+  mutate(transmitter_id = factor(paste(Freq, Space, ID, sep = '-')))
+
+teleost_press_data <- 
+  sensor_data %>%
+  filter(Org_type == "Teleost") %>% 
+  filter(Type =="press") 
+
+
+teleost_sensor_data <- 
+  teleost_press_data %>% 
+  bind_rows(teleost_temp_data)
+
+```
+
+# Combine back together again
+
+```{r}
+our_sensor_data1 <- 
+  teleost_sensor_data %>% 
+  bind_rows(shark_sensor_data)
+```
+
+
+# Check
+```{r}
+our_sensor_data1 %>% 
+  dplyr::select(transmitter_id, ID, Type, Serial) %>% 
+  arrange(ID) %>% 
+  distinct
+
+our_sensor_data %>% 
+  dplyr::select(transmitter_id, ID, Type, Serial) %>% 
+  arrange(ID) %>% 
+  distinct
+```
+
+# Now need to add back in the ones that are not from our project
+
+```{r}
+sensor_data1 <- 
+  our_sensor_data1 %>% 
+  bind_rows(other_sensor_data)
+```
+
+# chop out the original sensor data from alldata
+```{r}
+alldata1 <- 
+  alldata %>% 
+  filter(is.na(Sensor.Value)) %>% 
+  droplevels() %>% 
+  bind_rows(sensor_data1)
+```
+
+# Check
+```{r}
+alldata1 %>% 
+  dplyr::select(transmitter_id) %>% 
+  arrange(transmitter_id) %>% 
+  distinct
+
+alldata %>% 
+  dplyr::select(transmitter_id) %>% 
+  arrange(transmitter_id) %>% 
+  distinct
+```
+
+# Once happy, reassign to main df name
+```{r}
+alldata <- alldata1
+```
+
+## NOTE FOR FUTURE -> SHOULD RELEVEL INSTALLATION NAME HERE AT SOME POINT IN THE FUTURE (IE REEFS = NORTH TO SOUTH)
+
+
+
+
+## And save for use elsewhere/later
 ```{r}
 #save(alldata, file = "../data/RData/alldata.RData")
 as.tibble(colnames(alldata))
 ```
-
-
-```{r}
-data_dep1 %>% 
-  select(transmitter_id, station_name) %>% 
-  unique()
-
-
-  filter(transmitter_id == "A69-9007-6256")
-
-
-```
-
-
-

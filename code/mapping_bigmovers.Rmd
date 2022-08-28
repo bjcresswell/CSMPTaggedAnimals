@@ -6,10 +6,9 @@ output:
  html_document:
     code_folding: show
     collapse: no
+    fig_height: 4
     df_print: paged
     fig_caption: yes
-    fig_height: 4
-    fig_width: 4
     highlight: textmate
     theme: spacelab
     toc: yes
@@ -20,14 +19,14 @@ editor_options:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width = 7, fig.height = 7)
+knitr::opts_chunk$set(echo = TRUE, comment = '')
+                      #fig.width = 7, fig.height = 7
+                      
 options(knitr.duplicate.label = 'allow')
 #rm(list=ls())
 #getwd()
 ```
 
-
-Note: Need to run the tidyeda.Rmd first to subset the required objects
 
 # Load required packages
 ```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
@@ -37,8 +36,9 @@ library(rgeos)
 library(adehabitatHR)
 library(leaflet)
 library(cowplot)
+library(ggpubr)   # Figure creation including separate legends
 library(ggmap)    # for fortifying shapefiles
-library(ggsn) # Package with built in scale bar and north point
+library(ggsn)     # Package with built in scale bar and north point
 library(readxl)
 library(scatterpie)
 library(collapse)
@@ -46,180 +46,178 @@ library(tidyverse)
 library(rayshader)
 ```
 
-# First need a base map for QlD coast, GBR and CSMP
 
-## Load world map object from ggplot
-```{r world-map-load}
-world <- map_data("world")
+# Load data
+
+## Shape files for reefs and fortify
+```{r shape-files-load, message=FALSE, warning=FALSE, include=FALSE}
+# Coral Sea shape files
+cs_dryreef_df <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% fortify
+cs_reef_df <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef") %>% fortify 
+
+# GBR
+#gbr_feats_df <- readOGR("../data/3dgbr_geomorph/shape", "gbr_features") %>% fortify # Outlines of main reefs
+gbr_shelf_df <- readOGR("../data/3dgbr_geomorph/shape", "gbr_shelf") %>% fortify # Includes inshore detail (so can use to map coastline better than straya object)
+#gbr_dry <- readOGR("../data/3dgbr_geomorph/shape", "gbr_dryreef") %>% fortify # Waaaay to big to plot
+
+# Park boundaries - don't need for this as we are so zoomed in they aren't captured
+csmp_df <- readOGR("../data/3dgbr_geomorph/shape", "qld_gbrwha_cscz") %>% fortify
+gbr_df <- readOGR("../data/3dgbr_geomorph/shape", "gbrwha_outer") %>% fortify
 ```
 
-## Plot the map trimmed down to just GBR and Coral Sea area
-```{r}
-base_map <- 
-  world %>% 
+
+## Tagging locations and movements
+Need to run the wrangling script:
+```{r run-wrangle, message=FALSE, warning=FALSE, include=FALSE}
+source(knitr::purl("wrangling_bigmovers.Rmd", quiet=TRUE))
+```
+
+
+
+# Plotting
+
+
+### Inset maps
+
+#### Inset  1: Australia overview 
+```{r straya-map}
+straya <- 
+  map_data("world") %>% 
   filter(region == 'Australia') %>% 
   ggplot() +
-  geom_polygon(aes(x = long, y = lat, group = group), colour = 'grey10', fill = 'grey40', lwd = 0.3) +
-  coord_map(ylim = c(-24, -10), xlim = c(143, 152.8)) 
-base_map
+  geom_polygon(aes(x = long, y = lat, group = group), colour = 'black', fill = 'grey10', lwd = 0.3) +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(colour = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  geom_rect(aes(xmin = 143, xmax = 153, ymin = -24, ymax = -10), color = "white", fill = 'transparent', lwd = 0.25) +
+  coord_quickmap(ylim = c(-45, -8), xlim = c(112, 154)) 
+#straya
 ```
 
 
-Looking about right. Get reefs on it.
-
-## Load in shape files from 3dgbr using ggmap
-```{r shape-files-load, message=FALSE, warning=FALSE}
-cs_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef")
-cs_reef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef")
-#cs_cays <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_cay")
-#gbr_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "gbr_dryreef")
-#gbr_feats <- readOGR("../data/3dgbr_geomorph/shape", "gbr_features")
-#gbr_shelf <- readOGR("../data/3dgbr_geomorph/shape", "gbr_shelf")
-```
-
-## These can't be plotted directly in ggplot so need to be converted to dataframes:
-```{r message=FALSE}
-cs_dryreef_df <- fortify(cs_dryreef)
-cs_reef_df <- fortify(cs_reef)
-#cs_cays_df <- fortify(cs_cays)
-#gbr_dryreef_df <- fortify(gbr_dryreef)
-#gbr_feats_df <- fortify(gbr_feats)
-#gbr_shelf_df <- fortify(gbr_shelf)
-```
-
-
-# Now the shapefile can be plotted as either a geom_path or a geom_polygon.
+#### Inset 2: Tagging locations
+Need to carve up the cs_reef and dry_reef objects first:
 ```{r}
-reefsmap<- 
-  base_map +
-    #geom_path(data = gbr_dryreef_df, aes(x = long, y = lat, group = group), color = 'gray', size = .5) +
-    #geom_polygon(data = gbr_feats_df, aes(x = long, y = lat, group = group), colour = 'grey10', fill = 'grey40', size = .02) +
-    #geom_path(data = gbr_shelf_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'white', size = .2) +
-    geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'gray', size = .2) + # Can use fill = on polygon but not path
-    #geom_path(data = cs_cays_df, aes(x = long, y = lat, group = group), color = 'gray', fill = 'white', size = .2) +
-    #geom_path(data = cs_dryreef_df, aes(x = long, y = lat, group = group), color = 'gray', size = .2) +
-    theme(axis.title = element_blank(), 
+cs_dryreef_E <- cs_dryreef_df %>% filter(long >149)
+cs_reef_W <- cs_reef_df %>% filter(long <149)
+```
+
+Then plot
+```{r tagging-map}
+taggingmap <- 
+map_data("world") %>% filter(region == 'Australia') %>% filter(lat > -25) %>% # E Coast
+ ggplot() +
+  geom_polygon(data = csmp_df, aes(x = long, y = lat, group = group), fill = "white", color = 'grey20', size = 0.5, linetype = "dotdash") + 
+  geom_path(data = gbr_df, aes(x = long, y = lat, group = group), color = 'grey20', size = 0.5, linetype = "dotdash") +
+  geom_polygon(aes(x = long, y = lat, group = group), colour = 'grey10', fill = 'grey40', lwd = 0.5) +
+  geom_polygon(data = cs_dryreef_E, aes(x = long, y = lat, group = group), fill = 'grey75', colour ='grey45', size = .2) +
+  geom_polygon(data = cs_reef_W, aes(x = long, y = lat, group = group), fill = 'grey75', colour ='grey45', size = .2) +
+  geom_point(data = tag_locs_tigers, aes(x = Long, y = Lat, shape = Scientific_name, fill = sharkloc), size = 4) +
+  geom_point(data = tag_locs_others, aes(x = Long, y = Lat, shape = Scientific_name, fill = sharkloc), size = 4) +
+  scale_shape_manual(name = 'Shark ID', values = c(22, 24, 21)) +
+  scale_fill_brewer(name = 'Shark ID', palette = "Dark2", direction = -1) +
+  theme(legend.position = 'none') +
+  #guides(fill = guide_legend(override.aes = list(pch = c(24,24,22,21,21,21)))) +
+  #guides(shape = "none") +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        #legend.key = element_blank(),
+        #legend.background = element_rect(fill = "transparent"),
+        #legend.title = element_blank(),
+        #legend.position = "left"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"))+
+  coord_quickmap(ylim = c(-23.8, -10), xlim = c(143, 153)) 
+taggingmap
+
+#ggsave(taggingmap, filename = '../output/tagmap_bigsharks.png', width = 62, height = 100, units = 'mm', dpi = 400)
+```
+
+Squares are silvertips
+Triangles are greys
+Circles are tigers
+
+
+### Inset 3: Legend
+```{r make-legend}
+source("legend_bigmovers.R")
+```
+
+
+
+
+### Inset 4: Zoom on Flinders and Holmes
+```{r bigmov-zoom-map, message=FALSE, warning=FALSE}
+zoom_map <- 
+ ggplot() +
+  geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), fill = "grey", color = 'black', size = .2) + 
+  geom_curve(data = tiger_sublocmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = sharkloc), lty = "11", size = 1, size = 1, angle = 90, curvature = 0.45, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  geom_curve(data = other_sublocmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = sharkloc), lty = "solid",  size = 1, size = 1, angle = 90, curvature = 0.45, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  scale_colour_brewer(palette = "Dark2", direction = -1) +
+  #scale_colour_viridis_d() +                                                        # viridis colour option
+  guides(colour = 'none', fill = 'none', shape = 'none') +                           # Don't want any legend
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "white"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  coord_quickmap(ylim = c(-18.2, -16.1), xlim = c(147.5, 149)) 
+  
+#zoom_map
+```
+## Zoom inset explanation:
+A69-9001-63847	Galeocerdo cuvier	            2021-03-16	Capricorn Bunkers	->  Holmes - West     |	2021-07-13	Holmes - West	   -> Flinders - North
+A69-9001-64080	Carcharhinus albimarginatus	  2021-02-22  Holmes - West	    ->  Flinders - North  | 2021-03-25	Flinders - North ->	Osprey	
+A69-9001-60580	Carcharhinus amblyrhynchos	  2021-10-24  Flinders - South  ->	Holmes - East	
+A69-9001-63947	Galeocerdo cuvier           	2021-08-10	Palm Islands      ->	Flinders - North
+
+# Save if required
+```{r}
+#ggsave(zoom_map, filename = "../output/bigmove-zoomed.jpg", width = 62, height = 100, units = 'mm')
+```
+
+
+### Plot
+```{r}
+mov_base_map <- 
+ map_data("world") %>% 
+  filter(region == 'Australia') %>% 
+  filter(lat > -25) %>% 
+ ggplot() +
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "grey50", colour = "grey20", size = 0.3) +
+  #geom_path(data = gbr_shelf_df, aes(x = long, y = lat, group = group), color = 'grey20', size = 0.5) +
+  geom_polygon(data = cs_dryreef_E, aes(x = long, y = lat, group = group), fill = 'grey75', colour ='grey45', size = 0.5) +
+  geom_polygon(data = cs_reef_W, aes(x = long, y = lat, group = group), fill = 'grey80', colour ='grey45', size = 0.5) +
+  theme(axis.title = element_blank(), 
         #axis.text = element_blank(),
         #axis.ticks = element_blank(),
         #panel.grid = element_line(colour = "#ECEFF1"),
         panel.border = element_rect(colour = "black", fill = "transparent"),
         panel.background = element_rect(fill = "transparent"),
-        plot.background = element_rect(fill = "transparent", colour = "transparent")) 
-
-reefsmap
-```
-
-
-# Map tagging locations (need to run the wrangling script first to create the tag_locs object)
-
-```{r}
-source(knitr::purl("wrangling_bigmovers.Rmd", quiet=TRUE))
-```
-
-
-Also need to allocated some better labels/IDs to replace transmitter_id 
-
-```{r}
-tag_locs <- 
-  tag_locs %>% 
-  mutate(shark_id = case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',
-                              grepl('63847', transmitter_id) ~ 'Tiger 2',
-                              grepl('63947', transmitter_id) ~ 'Tiger 3',
-                              grepl('64080', transmitter_id) ~ 'Silver 1',
-                              grepl('60580', transmitter_id) ~ 'Silver 2',
-                              grepl('64103', transmitter_id) ~ 'Grey 1'))
-```
-
-```{r tagging-map}
-taggingmap <- 
-reefsmap +
-geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = shark_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
-  scale_shape_manual(name = 'Shark ID', values = c(21, 22, 24)) +
-  scale_fill_brewer(name = 'Shark ID', palette = "Dark2", direction = -1) +
-  guides(fill = guide_legend(override.aes = list(shape = 21)),
-         shape = 'none') +
-  theme(legend.position = 'none') +
-  theme(axis.title = element_blank(), 
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
-taggingmap
-
-ggsave(taggingmap, filename = '../output/tagmap_bigsharks.png', width = 62, height = 100, units = 'mm', dpi = 400)
-```
-
-Circles are silvertips
-Squares are greys
-Triangles are tigers
-
-# Plot legend separately
-```{r}
-library(ggpubr)
-# Extract the legend. Returns a gtable
-leg <- ggpubr::get_legend(taggingmap)
-
-# Convert to a ggplot and print
-shark_leg <- as_ggplot(leg)
-
-ggsave(shark_leg, filename = '../output/sharklegend.png', width = 62, height = 100, units = 'mm', dpi = 400)
-```
-
-
-
-# Now need to plot the movement segments/arrows/curves on this
-- Going to use the Dark2 palette from RColourBrewer as it has enough options. 
-- If we need more than 8 will have to turn to 'Paired' or look at custom options.
-```{r}
-library(RColorBrewer)
-display.brewer.all(colorblindFriendly = TRUE)
-```
-
-# As a curve - all from mover_sum_location
-```{r}
-#movement_map1 <-
-  reefsmap +
-  geom_curve(data = mover_sum_location, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-             size = 1, angle = 90, curvature = 0.4, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
-  #scale_fill_manual(values = wes_palette("GrandBudapest1")) +
-  #scale_colour_viridis_d()+
-  scale_colour_brewer(palette = "Dark2")+
-  #geom_point(data = tag_locs, aes(x = Long, y = Lat, shape = Scientific_name, fill = transmitter_id), size = 4, position = position_nudge(x = -0.1, y = -0.2)) +
-  #scale_shape_manual(values = c(21, 22, 24)) +
-  coord_quickmap(ylim = c(-24, -10), xlim = c(143, 152.8))  # geom_curve doesn't play nicely with coord_map 
-
-
-```
-
-Because some individuals have made the same movements they are masked in this plot - will need to split out the mover_sum_reef df and plot tigers separate from GRS and silvers - then set curvature and angle separately.
-Also want to make a more meaningful legend...
-
-
-```{r}
-tiger_locmovs <- 
-  tiger_locmovs %>% 
-  mutate(shark_id = case_when(grepl('4172', transmitter_id) ~ 'Tiger 1',
-                              grepl('63847', transmitter_id) ~ 'Tiger 2',
-                              grepl('63947', transmitter_id) ~ 'Tiger 3'))
-  
-  
-other_locmovs <- 
-  other_locmovs %>% 
-  mutate(shark_id = case_when(grepl('64080', transmitter_id) ~ 'Silver 1',
-                              grepl('60580', transmitter_id) ~ 'Silver 2',
-                              grepl('64103', transmitter_id) ~ 'Grey 1'))
-
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  coord_quickmap(ylim = c(-23.8, -10), xlim = c(143.5, 158.2))  # geom_curve doesn't play nicely with coord_map 
+mov_base_map
 ```
 
 
 
 
-# As a curve - separate
+
+
+# Now make movement map using the two separate dfs for shark movement
 ```{r message=FALSE, warning=FALSE}
 bigmov_map <- 
-  reefsmap +
-  geom_curve(data = tiger_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-          lty = "11", size = 1, angle = 90, curvature = 0.25 , arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
-  geom_curve(data = other_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-          lty = "solid",  size = 1, angle = 120, curvature = 0.5, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  mov_base_map +
+  geom_curve(data = other_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = sharkloc),
+          lty = "solid", size = 1, angle = 100, curvature = 0.5 , arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  geom_curve(data = tiger_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = sharkloc),
+          lty = "11",  size = 1, angle = 50, curvature = 0.25, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
   scale_colour_brewer(palette = "Dark2", direction = -1) +
   #scale_colour_viridis_d() +                                                                                                              # viridis colour option
   guides(fill = 'none', colour = 'none') +
@@ -229,7 +227,7 @@ bigmov_map <-
   geom_rect(aes(xmin = 147.5, xmax = 149, ymin = -18.2, ymax = -16.1), color="grey50", fill = 'transparent')+
   coord_quickmap(ylim = c(-24, -10), xlim = c(143, 158))  # geom_curve doesn't play nicely with coord_map 
 bigmov_map
-ggsave(bigmov_map, filename = '../output/bigmove_map.png', width = 200, height = 200, units = 'mm', dpi = 400)
+#ggsave(bigmov_map, filename = '../output/bigmove_map.png', width = 200, height = 200, units = 'mm', dpi = 400)
 ```
 
 
@@ -241,94 +239,48 @@ ggsave(bigmov_map, filename = '../output/bigmove_map.png', width = 200, height =
 
 
 
-## Zoomed-in map for insetting
-
-### Could just crop the map above
-```{r}
-#zoom_map <- 
-  bigmov_map +
-  coord_quickmap(ylim = c(-18.2, -16.1), xlim = c(147.5, 149)) # geom_curve doesn't play nicely with coord_map 
-```
-A few issues though and it would be nice to have different curvatures for the segments on this map
 
 
-### Work up from scratch
-```{r bigmov-zoom-map, fig.width = 4, fig.height = 7}
-zoom_map <- 
-  reefsmap +
-  geom_curve(data = tiger_sublocmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-             lty = "11", size = 1, size = 1, angle = 120, curvature = 0.35, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
-  geom_curve(data = other_sublocmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-             lty = "solid",  size = 1, size = 1, angle = 90, curvature = 0.55, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
-  scale_colour_brewer(palette = "Dark2", direction = -1) +
-  #scale_colour_viridis_d() +                                                        # viridis colour option
-  guides(colour = 'none', fill = 'none', shape = 'none') +                           # Don't want any legend
-  theme(axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.border = element_rect(colour = "black", fill = "transparent"),
-        panel.background = element_rect(fill = "white"),
-        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
-  coord_quickmap(ylim = c(-18.2, -16.1), xlim = c(147.5, 149)) # geom_curve doesn't play nicely with coord_map 
-  
-zoom_map
-```
 
 
-# Save if required
-```{r}
-ggsave(zoom_map, filename = "../output/bigmove-zoomed.jpg", width = 62, height = 100, units = 'mm')
-```
+
 
 ```{r}
 bigmov_zoom <- 
-  bigmov_map + annotation_custom(
-    ggplotGrob(zoom_map), 
+  bigmov_map + annotation_custom(ggplotGrob(zoom_map), 
     xmin = 151, xmax = 159.5, ymin = -24, ymax = -15)
 bigmov_zoom
 ggsave(bigmov_zoom, filename = "../output/bigmove-zoom.jpg", width = 200, height = 200, units = 'mm')
 ```
 
-## Zoom inset explanation:
-A69-9001-63847	Galeocerdo cuvier	            2021-03-16	Capricorn Bunkers	->  Holmes - West     |	2021-07-13	Holmes - West	   -> Flinders - North
-A69-9001-64080	Carcharhinus albimarginatus	  2021-02-22  Holmes - West	    ->  Flinders - North  | 2021-03-25	Flinders - North ->	Osprey	
-A69-9001-60580	Carcharhinus amblyrhynchos	  2021-10-24  Flinders - South  ->	Holmes - East	
-A69-9001-63947	Galeocerdo cuvier           	2021-08-10	Palm Islands      ->	Flinders - North
 
 
 
-# Create Australia overview map for inset
-```{r}
-straya <- 
-  world %>% 
-  filter(region == 'Australia') %>% 
-  ggplot() +
-  geom_polygon(aes(x = long, y = lat, group = group), colour = 'black', fill = 'grey20', lwd = 0.3) +
-  theme(axis.title = element_blank(), 
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid = element_line(colour = "transparent"),
-        #panel.border = element_rect(colour = "black", fill = "transparent"),
-        panel.background = element_rect(fill = "transparent"),
-        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
-  geom_rect(aes(xmin = 143, xmax = 153, ymin = -24, ymax = -10), color = "white", fill = 'transparent', lwd = 0.01) +
-  coord_quickmap(ylim = c(-45, -8), xlim = c(112, 154)) 
-straya
-```
+
 
 
 
 # Add overview map, scale bar and N pointer
-```{r}
-bigmov_final <- 
-  bigmov_zoom +
-  annotation_custom(ggplotGrob(straya), xmin = 141, xmax = 148, ymin = -24.5, ymax = -21) +
-  scalebar(cs_dryreef_df, dist = 200, dist_unit = "km", transform = TRUE, model = "WGS84", height = 0.008, 
-           location = 'bottomright', anchor = c(x = 157, y = -24.4), family = "Arial", st.size = 3.2, border.size = 0.4, st.bottom = FALSE) +
+```{r final-fig}
+#bigmov_final <- 
+  bigmov_map +
+ # annotation_custom(ggplotGrob(zoom_map), xmin = 151, xmax = 159.5, ymin = -16, ymax = -10) +
+  annotation_custom(ggplotGrob(taggingmap),  xmin = 151, xmax = 159.5, ymin = -16, ymax = -10) +
+  #annotation_custom(ggplotGrob(straya), xmin = 141, xmax = 148, ymin = -24.5, ymax = -21) +
+  #scalebar(cs_dryreef_df, dist = 200, dist_unit = "km", transform = TRUE, model = "WGS84", height = 0.008, 
+  #         location = 'bottomright', anchor = c(x = 157, y = -24.4), family = "Arial", st.size = 3.2, border.size = 0.4, st.bottom = FALSE) +
   draw_image('../data/North_Pointer.jpg', x = 144.2, y = -21, scale = 1.5)
-bigmov_final
+#bigmov_final
 ggsave(bigmov_final, filename = "../output/bigmover_fig_final.jpg", width = 200, height = 200, units = 'mm')
 
 ```
+
+
+
+
+
+
+
 
 
 
@@ -338,10 +290,10 @@ ggsave(bigmov_final, filename = "../output/bigmover_fig_final.jpg", width = 200,
 ```{r message=FALSE, warning=FALSE}
 bigmov_map2 <- 
   reefsmap +
-  geom_curve(data = tiger_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-          lty = "11", size = 1, angle = 90, curvature = 0.25 , arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
-  geom_curve(data = other_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = transmitter_id),
-          lty = "solid",  size = 1, angle = 120, curvature = 0.5, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  geom_curve(data = other_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = shark_id),
+          lty = "solid", size = 1, angle = 100, curvature = 0.5 , arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
+  geom_curve(data = tiger_locmovs, aes(x = From_Long, y = From_Lat, xend = To_Long, yend = To_Lat, colour = shark_id),
+          lty = "11",  size = 1, angle = 50, curvature = 0.25, arrow = arrow(length = unit(0.3, "cm"), type="closed")) +
   scale_colour_brewer(palette = "Dark2", direction = -1) +
   #scale_colour_viridis_d() +                                                                                                              # viridis colour option
   guides(fill = 'none', colour = 'none') +

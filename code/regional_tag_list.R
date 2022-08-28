@@ -28,6 +28,9 @@ regional_teleost_list <- read_excel('../data/Master_tagged_animals_BC.xlsx', 2, 
   dplyr::select(!25) %>% # Gets rid of the notes column
   mutate(Org_type = factor('Teleost')) # Column with Teleost vs Shark -> may need later
 
+regional_teleost_list %$% 
+  summary(factor(Common_name))
+
 # Sharks:
 regional_shark_list <- read_excel('../data/Master_tagged_animals_BC.xlsx', 1, trim_ws = TRUE) %>% # imports the spreadsheet with the list of tagged teleosts
   mutate(transmitter_id=paste(Freq, Space, ID, sep = '-'), .after=ID) %>% # Creates a new column for the complete Tag ID
