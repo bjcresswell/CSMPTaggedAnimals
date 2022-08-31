@@ -8,8 +8,7 @@ output:
     collapse: no
     df_print: paged
     fig_caption: yes
-    fig_height: 4
-    fig_width: 4
+    
     highlight: textmate
     theme: spacelab
     toc: yes
@@ -20,7 +19,7 @@ editor_options:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, comment = '', fig.width = 6, fig.height = 3.75)
+knitr::opts_chunk$set(echo = TRUE, comment = '')
 options(knitr.duplicate.label = 'allow')
 #rm(list=ls())
 #getwd()
@@ -45,8 +44,7 @@ library(rayshader)
 
 # First need a base map object(s)
 ```{r}
-world <- map_data("world")
-straya <- world %>% 
+coast <- map_data("world") %>% 
   filter(region == 'Australia')
 ```
 
@@ -87,7 +85,7 @@ straya <- world %>% filter(region == 'Australia') %>% filter(lat >-18)
 # Pull in Ri
 Sharks and f
 ```{r run-wrangle, message=FALSE, warning=FALSE, include=FALSE}
-source(knitr::purl("ri_sharks.Rmd", quiet=TRUE))
+source(knitr::purl("ri_sharks_byinstallation.Rmd", quiet=TRUE))
 ```
 
 # Additional plotting variables
@@ -181,25 +179,138 @@ silvers_installation_stats
 ```
 
 
-# Basemap
+
+
+
+
+
+# Basemap (same as for tagging effort)
 ```{r}
-ri_basemap <- ggplot() +
+ri_basemap <- 
+  ggplot() +
   geom_path(data = gbr_shelf_df, aes(x = long, y = lat, group = group), color = 'grey20', size = .2) +
-  geom_polygon(data = gbr_feats_df, aes(x = long, y = lat, group = group), fill = 'grey50', size = .1) +
-  geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), fill = 'grey90', size = .1,  alpha = .4) +
+  geom_polygon(data = gbr_feats_df, aes(x = long, y = lat, group = group), fill = 'grey50', size = .1) +                # Reefs grey75 but this layer masked by the alpha from the shelf layer
+  geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), fill = 'grey90', size = .1,  alpha = .4) +   # .. and makes the land be grey50
   geom_path(data = gbr_feats_df, aes(x = long, y = lat, group = group), color = 'grey20', size = .1) +
+  geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'black', fill = 'gray75', size = .2) + # Reefs  grey75 
+  theme(axis.title = element_blank(), 
+        axis.text.x.top = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        #axis.ticks.x.top = element_line(), 
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  scale_x_continuous(position = "top") +
+  coord_quickmap(ylim = c(-18, -13.5), xlim = c(143, 149))
+ri_basemap
+```
+
+
+
+
+# Basemap
+```{r basemap2, fig.width=17}
+ri_basemap2 <- straya %>% 
+  ggplot() +
+  geom_polygon(aes(x = long, y = lat, group = group), fill = 'grey50', color = 'grey50', size = 6) +
+  geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), fill = 'white',  size = .1) +
+  #geom_path(data = gbr_feats_df, aes(x = long, y = lat, group = group), color = 'grey20', size = .1) +
   geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'black', fill = 'gray75', size = .2) + 
   theme(axis.title = element_blank(), 
-        #axis.text = element_blank(),
+        axis.text = element_text(size = 12),
         #axis.ticks = element_blank(),
         #panel.grid = element_line(colour = "#ECEFF1"),
         panel.border = element_rect(colour = "black", fill = "transparent"),
         panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", colour = "transparent")) +
-  coord_map(ylim = c(-18, -13.5), xlim = c(145.5, 149))
+  coord_quickmap(ylim = c(-18, -13.5), xlim = c(144, 149))
 
-ri_basemap
+ri_basemap2
 ```
+
+
+## Now need to run ri_sharks_byinstallation to generate bar plots
+### Unique positions for each reef
+```{r}
+ri_basemap2 +
+  annotation_custom(ggplotGrob(ri_osprey_bar), xmin = 146.8, xmax = 148.8, ymin = -14.8, ymax = -13.3) +
+  annotation_custom(ggplotGrob(ri_bougainville_bar), xmin = 147.1, xmax = 149.1, ymin = -16.2, ymax = -14.7) +
+  annotation_custom(ggplotGrob(ri_holmes_bar), xmin = 145.4, xmax = 147.4, ymin = -17.2, ymax = -15.7) +
+  annotation_custom(ggplotGrob(ri_flinders_bar), xmin = 145.9, xmax = 147.9, ymin = -18.5, ymax = -17) 
+  
+```
+
+
+### Straight up and down
+```{r}
+ri_sharks_byreef <- 
+ri_basemap2 +
+  annotation_custom(ggplotGrob(ri_osprey_bar), 
+                    xmin = 144.2, xmax = 146.2,
+                    ymin = -15.1, ymax = -14) +
+  annotation_custom(ggplotGrob(ri_bougainville_bar),
+                    xmin = 144.7, xmax = 146.7,
+                    ymin = -16.1, ymax = -15) +
+  annotation_custom(ggplotGrob(ri_holmes_bar), 
+                    xmin = 145.2, xmax = 147.2,
+                    ymin = -17.1, ymax = -16) +
+  annotation_custom(ggplotGrob(ri_flinders_bar), 
+                    xmin = 145.7, xmax = 147.7,
+                    ymin = -18.3, ymax = -17) 
+
+ggsave("../output/ri_sharks_byreef.png", plot = ri_sharks_byreef, width = 220, height = 340, units = "mm", dpi = 300)
+
+  
+```
+
+
+
+
+### From one plot
+```{r}
+ri_basemap2 +
+  scalebar(cs_dryreef_df, dist = 100, dist_unit = "km", transform = TRUE, model = "WGS84",            # Geo properties
+           location = 'bottomright', anchor = c(x = 149, y = -18),                                # Position of bar
+           family = "Arial", st.size = 3, st.dist = 0.007,                                            # Text properties
+           height = 0.003, border.size = 0.5, st.bottom = FALSE) + 
+     draw_image('../output/ri_combined_bar.png', x = 145.5, y = -17, scale = 3)
+
+```
+
+
+
+```{r}
+source("colour_palettes.R")
+```
+
+
+
+
+```{r}
+ri_bubblemap <- 
+ri_basemap +
+  geom_segment(data = grs_installation_stats, aes(x = long, y = lat, xend = label_long-0.1, yend = label_lat), size = .3,  col = "grey60") +
+  geom_polygon(data = cs_reef_df, aes(x = long, y = lat, group = group), color = 'black', fill = 'gray75', size = .2) +
+  geom_point(data = grs_installation_stats, aes(x = long1-1.3, y = lat1, size = mean, fill = installation_name), stroke = 0.5, pch = 21) +
+  #geom_label(data = grs_installation_stats, aes(x = label_long , y = label_lat, label = installation_name), fill = "white") +
+  geom_point(data = silvers_installation_stats, aes(x = long1-1.1, y = lat1, size = mean, fill = installation_name), stroke = 0.5, pch = 21) +
+  scale_size(range = c(6.5, 41)) +
+  scale_shape_manual(name = 'Reef') +
+  scale_fill_manual(values =  installation_palette) +
+  geom_text(data = grs_installation_stats, aes(x = long1-1.3, y = lat1, label = mean)) +
+  geom_text(data = silvers_installation_stats, aes(x = long1-1.1, y = lat1, label = mean)) +
+  theme(legend.position = 'none') +
+  coord_quickmap(ylim = c(-18, -13.5), xlim = c(143, 151))
+
+ggsave("../output/ri_bubblemap.png", plot = ri_bubblemap, width = 220, height = 138, units = "mm")
+
+#ri_map
+
+```
+
+
+
 
 
 

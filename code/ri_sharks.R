@@ -1,8 +1,8 @@
-## ----setup, include=FALSE--------------------------------------------------------------------------------------------------------------------------------------
+## ----setup, include=FALSE-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
 
 
-## ----packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE----------------------------------------------------------------------------------
+## ----packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------------------------------------------------------------------------
 # Packages
 library(knitr)
 library(kableExtra)
@@ -15,22 +15,31 @@ library(ggmap)    # for fortifying shapefiles
 library(readxl)
 library(scatterpie)
 library(plotrix)   # Calculates SE
+library(patchwork)
 library(collapse)
 library(magrittr)
 library(tidyverse)
 
 
-## ----housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------
+## ----housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------------------------------------------------------------------------
 # Housekeeping
 #rm(list=ls())
 #getwd()
 
 
-## ----load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------------
+## ----load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------------
 source("ri_installation.R")
 
 
-## ----greys-ri, echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+installation_ri %$% 
+  summary(installation_name)
+
+installation_ri <- installation_ri %>% 
+  mutate(installation_name = fct_relevel(installation_name, c('Osprey', 'Bougainville', 'Holmes', 'Flinders'))) 
+
+
+## ----greys-ri, echo=FALSE, message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ri_greys <- 
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus amblyrhynchos')
@@ -42,7 +51,7 @@ ri_greys_table <-
   kable_minimal()
 
 
-## ----silvers-ri, echo=FALSE, message=FALSE, warning=FALSE------------------------------------------------------------------------------------------------------
+## ----silvers-ri, echo=FALSE, message=FALSE, warning=FALSE---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ri_silvers <- 
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus albimarginatus')
@@ -55,7 +64,7 @@ ri_silvers_table <-
 # Note: this kable code makes for a decent table when knitted but horrible to try to produce stand-alone table
 
 
-## ----grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------
+## ----grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE----------------------------------------------------------------------------------------------------------------------------------------------
 grs_installation_stats <- 
   ri_greys %>% 
   group_by(installation_name) %>% 
@@ -84,7 +93,7 @@ ri_greys_bar
 ggsave(ri_greys_bar, filename = "../output/ri_greys_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 
 
-## ----grs-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------
+## ----grs-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE----------------------------------------------------------------------------------------------------------------------------------------------
 grs_sex_stats <- 
   ri_greys %>% 
   group_by(Sex) %>% 
@@ -118,15 +127,14 @@ ggsave(grs_ri_sex_bar, filename = "../output/ri_greys_sex_bar.png", width = 80, 
 
 
 
-## ----grs-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------
-library(patchwork)
+## ----grs-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------------------------------------------------------------------------
 greys_riplot <- 
 ri_greys_bar + grs_ri_sex_bar +
   plot_layout(widths = c(2,1))
 ggsave(greys_riplot, filename = "../output/riplot_greys.png", width = 160, height = 100, units = 'mm', dpi = 600)
 
 
-## ----silvers-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
+## ----silvers-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------
 silvers_installation_stats <- 
   ri_silvers %>% 
   group_by(installation_name) %>% 
@@ -149,9 +157,10 @@ ri_silvers_bar <-
         plot.background = element_rect(fill = "transparent", colour = "transparent"),
         legend.position = "bottom")  +
   labs(y= "Ri (mean ± SE)", x = "Installation (reef)")
+ggsave(ri_silvers_bar, filename = "../output/ri_silvers_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 
 
-## ----silvers-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
+## ----silvers-stats-2, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------
 silvers_sex_stats <- 
   ri_silvers %>% 
   group_by(Sex) %>% 
@@ -181,8 +190,7 @@ silvers_ri_sex_bar
 
 
 
-## ----silver-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------
-library(patchwork)
+## ----silver-ri-plots, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------
 silvers_riplot <- 
 ri_silvers_bar + silvers_ri_sex_bar +
   plot_layout(widths = c(2,1))

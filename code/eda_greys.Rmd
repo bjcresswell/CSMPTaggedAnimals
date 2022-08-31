@@ -35,7 +35,14 @@ library(tidyverse)
 ```
 
 # Load data
-Need to run the eda Rmd to get the list of all grey reef sharks
+```{r}
+# All greys
+grs_all <- 
+  alldata %>% 
+  filter(Common_name == 'Grey Reef')
+
+```
+
 
 ## Check 
 ```{r}
@@ -76,7 +83,7 @@ grs_all %>%
   xlab("Date") + 
   ylab("Tag") +
   geom_point() +
-  facet_wrap(~ transmitter_id)
+  facet_wrap(~ Serial)
 grs_ab_main
 ```
 

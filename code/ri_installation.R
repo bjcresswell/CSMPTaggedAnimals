@@ -8,7 +8,7 @@
 
 getwd()
 #rm(list=ls())
-#setwd('../code')
+setwd('../code')
 
 # Load main data file
 load(file = "../data/RData/alldata.RData")

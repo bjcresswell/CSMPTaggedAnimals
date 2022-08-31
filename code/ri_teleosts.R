@@ -1,35 +1,8 @@
----
-title: "Analysing residency indices - Teleosts"
-author: "Ben Cresswell"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-knit: (function(inputFile, encoding) { 
-      out_dir <- "../output";
-      rmarkdown::render(inputFile,
-                        encoding=encoding, 
-                        output_file=file.path(dirname(inputFile), out_dir, 'Ri_teleost_analysis.html')) })
-output: 
- html_document:
-    code_folding: show
-    collapse: no
-    df_print: paged
-    fig_caption: yes
-    fig_height: 4
-    fig_width: 4
-    highlight: textmate
-    theme: spacelab
-    toc: yes
-    toc_float: yes
-editor_options: 
-  chunk_output_type: inline
----
-
-
-```{r setup, include=FALSE}
+## ----setup, include=FALSE-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
-```
 
 
-```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE-------------------------------------------------------------------------------------------------------------------------------------------------
 # Packages
 library(knitr)
 library(kableExtra)
@@ -45,41 +18,20 @@ library(plotrix)   # Calculates SE
 library(collapse)
 library(magrittr)
 library(tidyverse)
-```
 
 
-```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE---------------------------------------------------------------------------------------------------------------------------------------------
 # Housekeeping
 #rm(list=ls())
 #getwd()
-```
 
 
-# Residency index
-
-This document contains Ri analyses for teleosts, following email discussion 7 Aug 2022:
-
-- Teleosts #1 - Ri for tagging station (on Osprey), and..  
-- Teleosts #4 - Ri for alternative stations visited (again Osprey only)  
-The other 2 teleost analyses (distance and timing of movement) are handled in another markdown doc.  
-
-The residency index is the number of days an animal was detected at each receiver (site or station residency) or reef (reef or installation residency) divided by the number of days monitored (i.e. number of days from the tagging date to the date of receiver retrieval) (Papastamatiou et al. 2010; Espinoza et al. 2011).  
-
-Teleost dataset is based on 11 GTs (10 with sensor tags and 1 with pinger only), 5 black trevally and 1 coral trout.  
-
-# Data load and wrangling
-
-Data wrangling and station/installation Ri calculations conducted in separate scripts
-```{r load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+## ----load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE------------------------------------------------------------------------------------------------------------------------------------------------
 source("ri_installation.R")
 source("ri_station.R")
-```
 
 
-# Installation Ri Analysis
-
-## Comparing installation Ri between teleost taxa
-```{r teleost-inst-ri-plot, echo=FALSE, message=FALSE, warning=FALSE}
+## ----teleost-inst-ri-plot, echo=FALSE, message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------------------------------------------------------------------
 teleost_installation_ri <-   
 installation_ri %>% 
   filter(Org_type == 'Teleost') %>% 
@@ -104,18 +56,9 @@ teleost_installation_ri %>%
   labs(y= "Ri (mean ± SE)", x = "Taxa")
 #ggsave(teleost_installation_ri_plot, filename = "../output/inst_ri_teleost_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 
-```
-  
-#### Notes    
-- Only one individual trout in data set so no sd or se.   
 
 
-# Station Ri analysis 
-
-## Extract Ri values for each taxa {.tabset .tabset-faded}
-
-### Caranx ignobilis
-```{r gt-ri, echo=FALSE, message=FALSE, warning=FALSE}
+## ----gt-ri, echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_gts <- 
   station_ri %>% 
   filter(Scientific_name == 'Caranx ignobilis')
@@ -123,10 +66,9 @@ station_ri_gts <-
 station_ri_gts %>% 
   kbl() %>%
   kable_minimal()
-```
 
-### Caranx lugubris
-```{r cl-ri, echo=FALSE, message=FALSE, warning=FALSE}
+
+## ----cl-ri, echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_lugub <- 
   station_ri %>% 
   filter(Scientific_name == 'Caranx lugubris') 
@@ -134,10 +76,9 @@ station_ri_lugub <-
 station_ri_lugub %>% 
   kbl() %>%
   kable_minimal()
-```
 
-### Plectropomus laevis
-```{r pl-ri, echo=FALSE, message=FALSE, warning=FALSE}
+
+## ----pl-ri, echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_trout <- 
   station_ri %>% 
   filter(grepl('laev', Scientific_name)) 
@@ -145,13 +86,9 @@ station_ri_trout <-
 station_ri_trout %>% 
   kbl() %>%
   kable_minimal()
-```
 
 
-## Station Ri sumary stats and barplots
-
-### Giant trevally (Caranx ignobilis)
-```{r gt-bar, echo=FALSE, message=FALSE, warning=FALSE}
+## ----gt-bar, echo=FALSE, message=FALSE, warning=FALSE-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_stats_gts <- 
   station_ri_gts %>% 
   group_by(Scientific_name, station_name, station_name_long) %>% 
@@ -177,15 +114,9 @@ station_ri_stats_gts %>%
 ri_gts_bar
 
 ggsave(ri_gts_bar, filename = "../output/ri_gts_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
-  
-#### Notes    
-- Duplicates (T/P) already filtered out in wrangling script  
-- Detections centered on CS-03 and CS-04 -> right in lagoon entrance and the edge of the lagoon.
 
 
-### Black trevally (Caranx lugubris)
-```{r lug-bar, echo=FALSE, message=FALSE, warning=FALSE}
+## ----lug-bar, echo=FALSE, message=FALSE, warning=FALSE------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_stats_lugub <- 
 station_ri_lugub %>% 
   group_by(Scientific_name, station_name, station_name_long) %>% 
@@ -211,13 +142,9 @@ station_ri_stats_lugub %>%
 ri_lugub_bar
 
 ggsave(ri_lugub_bar, filename = "../output/ri_lugub_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
-```
-  
-#### Notes  
-- Note the absence of any detections from CS-04 or CS-05 (i.e. the Lagoon stations)
 
-### Coral trout (Plectropomus laevis)
-```{r trout-bar, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+## ----trout-bar, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE-------------------------------------------------------------------------------------------------------------------------------------------------------
 station_ri_stats_trout <- 
 station_ri_trout %>% 
   group_by(station_name, station_name_long) %>% 
@@ -244,12 +171,5 @@ station_ri_stats_trout %>%
 ri_trout_bar
 
 ggsave(ri_trout_bar, filename = "../output/ri_trout_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
-
-```
-  
-#### Notes  
-- Only 1 individual with 16 observations so a bit meaningless to present separately
-
-
 
 

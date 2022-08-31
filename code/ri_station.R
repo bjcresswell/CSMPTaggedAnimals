@@ -6,15 +6,15 @@
 ## setwd("code")
 
 
-#getwd()
+getwd()
 #rm(list=ls())
-#setwd('../code')
+setwd('../code')
 
 # Load main data file
 load(file = "../data/RData/alldata.RData")
 
 # And for other required data, run the project_tags_all script:
-source("../code/project_tags_list.R")
+source("../code/project_tag_list.R")
 
 # Select only variables and organisms required for this analysis
 station_ri <- alldata %>%

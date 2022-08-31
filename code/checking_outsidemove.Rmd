@@ -57,7 +57,7 @@ detected_tags <- alldata %>%
 
 # Combine
 ```{r}
-all_tags <- project_tag_list %>% 
+all_tags <- project_tags_all %>% 
   select(transmitter_id) %>% 
   bind_rows(detected_tags) %>% 
   distinct()
@@ -69,7 +69,7 @@ all_tags <- project_tag_list %>%
 # CSMP animals outside CSMP array
 ```{r}
 imos_filtered <- imos_data %>% 
-  filter(transmitter_id %in% project_tag_list$transmitter_id) %>% 
+  filter(transmitter_id %in% project_tags_all$transmitter_id) %>% 
   filter(installation_name != 'Coral Sea Receivers')
 ```
 Just that GRS
@@ -78,7 +78,7 @@ Just that GRS
 # non-CSMP animals INside CSMP array
 ```{r}
 imos_filtered2 <- imos_data %>% 
-  filter(!transmitter_id %in% project_tag_list$transmitter_id) %>% 
+  filter(!transmitter_id %in% project_tags_all$transmitter_id) %>% 
   filter(installation_name == 'Coral Sea Receivers')
 ```
 

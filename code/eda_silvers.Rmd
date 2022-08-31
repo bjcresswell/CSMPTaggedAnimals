@@ -35,7 +35,12 @@ library(tidyverse)
 ```
 
 # Load data
-Need to run the eda Rmd to get the list of all sharks
+
+```{r}
+silvers_all <- alldata %>% 
+  filter(Scientific_name == 'Carcharhinus albimarginatus')
+```
+
 
 ## Check 
 ```{r}
@@ -84,7 +89,7 @@ silvers_ab_main
 
 ## Save to get a better look
 ```{r save-silver-ab}
-ggsave(filename = '../output/silvers_abacus_overview.png', silvers_ab_main , width = 600, height = 200, units = 'mm', dpi = 300)
+ggsave(filename = '../output/silvers_abacus_overview.png', silvers_ab_main , width = 270, height = 100, units = 'mm', dpi = 300)
 ```
 
  One individual (A69-9001-64080) moved from Holmes to Flinders to Osprey and then out of array:

@@ -155,6 +155,11 @@ tag_effort_basemap
 ggsave('../output/tag-effort-map-draft.png', tag_effort_basemap, width = 220, height = 180, units = "mm")
 ```
 
+```{r}
+source("colour_palettes.R")
+```
+
+
 # Bubble map
 ```{r bubble-fig, fig.height=6, fig.width=6, message=FALSE, warning=FALSE}
 bubble_fig <- 
@@ -229,12 +234,6 @@ tagging_effort_map
 ```{r}
 ggsave("../output/tagging_effort_map.png", plot = tagging_effort_map, width = 220, height = 180, units = "mm")
 ```
-
-
-
-
-
-
 
 
 

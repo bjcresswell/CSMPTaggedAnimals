@@ -1,0 +1,553 @@
+---
+title: "Base map for individual reefs"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 6
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      #fig.width = 4.8, fig.height = 3
+                      fig.width = 12, fig.height = 8
+                      )
+options(knitr.duplicate.label = 'allow')
+#rm(list=ls())
+getwd()
+```
+
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(sp)
+library(rgdal)
+library(rgeos)
+library(adehabitatHR)
+library(leaflet)
+library(cowplot)
+library(ggmap)    # for fortifying shapefiles
+library(ggsn)
+library(patchwork)
+library(readxl)
+library(scatterpie)
+library(collapse)
+library(tidyverse)
+```
+
+
+# Part A. Wrangle in data
+
+## 1. Osprey reef area data:
+```{r read-osprey-data, message=FALSE, warning=FALSE, include=FALSE}
+osprey_reef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_reef") %>% fortify() %>% filter(long < 147) %>% filter(lat > -14.1)
+osprey_dryreef <- readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% fortify() %>% filter(long < 147) %>% filter(lat > -14.1)
+```
+
+## 2. Receiver stations
+```{r read-station-data, message=FALSE, warning=FALSE, include=FALSE}
+stations <- read_excel("../data/receiver_list_dep1.xlsx") %>% 
+  mutate_if(is.character, as.factor) %>% 
+  mutate(label_long = 146.52, label_lat = station_latitude*1.001) %>%       ## Separate locations for placing labels 
+  mutate(station_name = str_sub(station_name, 4, -1))                  ## Or can plot text within circles (points)
+#stations
+```
+
+## 3. Teleost Ri
+```{r run-wrangle, message=FALSE, warning=FALSE, include=FALSE}
+source(knitr::purl("ri_teleosts.Rmd", quiet=TRUE))
+```
+
+
+# Part B. Plots
+
+
+
+
+
+
+```{r osprey-main-fig}
+osprey_main<- 
+  ggplot() +
+  geom_point(data = project_serials_teleosts, aes(x = Long, y =Lat), colour = 'black', fill = 'red', size = 4,  stroke = 0.5, shape = 23 ) +    # Tagging locations
+  geom_polygon(data = osprey_reef, aes(x = long, y = lat, group = group), color = 'grey30', fill = 'dodgerblue', alpha = 0.5, lwd = 0.3) +
+  geom_polygon(data = osprey_dryreef, aes(x = long, y = lat, group = group), color = 'grey10', fill = 'seagreen', lwd = 0.3) +
+  geom_point(data = stations, aes(x = station_longitude, y =station_latitude), colour = 'black', fill = 'navyblue', size = 6,  stroke = 0.5, shape = 21 ) +
+  geom_text(data = stations, aes(x = station_longitude, y =station_latitude, label = station_name), colour = "white", size = 3) +
+  theme(axis.title = element_blank(), 
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        #axis.ticks = element_blank(),
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+  coord_quickmap(ylim = c(-13.97, -13.75), xlim = c(146.42, 146.65))
+```
+
+
+```{r}
+ggsave("../output/osprey_main.png", plot = osprey_main, width = 220, units = "mm", dpi = 300)
+
+```
+
+```{r}
+#osprey_final_nobars <- 
+  osprey_main +
+   scalebar(osprey_reef, dist = 2.5, dist_unit = "km", transform = TRUE, model = "WGS84",            # Geo properties
+           location = 'bottomright', anchor = c(x = 146.65, y = -13.977),                                # Position of bar
+           family = "Arial", st.size = 4, st.dist = 0.0015,                                            # Text properties
+           height = 0.0005, border.size = 0.5, st.bottom = FALSE) +
+    draw_image('../data/North_Pointer.jpg', x = 146.64, y = -13.76, hjust = 0.5, vjust = 0.5, scale = 0.025)
+
+```
+
+
+```{r}
+ggsave("../output/osprey_main_scale.png", plot = osprey_final_nobars, width = 220, units = "mm", dpi = 300)
+
+```
+
+```{r}
+station_ri_stats_gts
+station_ri_stats_lugub
+```
+
+
+
+## Struggling to get the two teleost stats dfs to full join and complete missing values (Lugubs have no obs at O4 or O5)
+### HACK
+```{r}
+station_ri_stats_lugub <- 
+station_ri_stats_lugub %>% 
+  merge(station_ri_stats_gts[c(2,3)], all = TRUE) %>% 
+  mutate(Scientific_name = replace_na(Scientific_name, "Caranx lugubris"))
+
+
+```
+
+
+
+
+
+```{r}
+station_ri_stats_teleosts <- 
+  station_ri_stats_gts %>% 
+  bind_rows(station_ri_stats_lugub) #
+
+write.csv(station_ri_stats_teleosts, "../output/teleost_station_ri.csv")
+
+```
+
+
+
+# Bar plots
+
+# North Horn - CS-O1
+```{r}
+CS_01 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "North_Horn") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.12), breaks = c(0.1)) +
+  ggtitle("North Horn") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+
+
+CS_01
+```
+
+
+```{r}
+ggsave("../output/osprey_O1.png", plot = CS_01, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+
+
+# Silver City (O2)
+```{r}
+CS_02 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "Silver_City") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.24), breaks = c(0.1, 0.2)) +
+  ggtitle("Silver City") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_02
+```
+
+
+
+
+```{r}
+ggsave("../output/osprey_O2.png", plot = CS_02, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+# Overnight_Mooring (O3)
+```{r}
+CS_03 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "Overnight_Mooring") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.72), breaks = c(0.2, 0.4, 0.6)) +
+  ggtitle("Overnight Mooring") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_03
+```
+
+```{r}
+ggsave("../output/osprey_O3.png", plot = CS_03, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+# Lagoon_1 (O4)
+```{r}
+CS_04 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "Lagoon_1") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.48), breaks = c(0.2, 0.4)) +
+  ggtitle("Lagoon 1") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_04
+```
+
+```{r}
+ggsave("../output/osprey_O4.png", plot = CS_04, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+
+# Lagoon_2 (O5)
+```{r}
+CS_05 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "Lagoon_2") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.12), breaks = c(0.1)) +
+  ggtitle("Lagoon 2") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_05
+```
+
+```{r}
+ggsave("../output/osprey_O5.png", plot = CS_05, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+
+
+
+# Around_The_Bend (O6)
+```{r}
+CS_06 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "Around_The_Bend") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.60), breaks = c(0.1, 0.3, 0.5)) +
+  ggtitle("Around Bend") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_06
+```
+
+```{r}
+ggsave("../output/osprey_O6.png", plot = CS_06, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+
+# False_Entrance (O7)
+```{r}
+CS_07 <- 
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "False_Entrance") %>% 
+  ggplot(aes(x = Scientific_name, y = mean, fill = Scientific_name)) +
+  geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  scale_x_discrete(labels = NULL, expand = expansion(add=c(1,0.6)))+
+  scale_fill_manual(values = c("grey85", "grey25"))  +
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.12), breaks = c(0.1)) +
+  ggtitle("False Entrance") +
+  theme(panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        axis.ticks.length.y = unit(c(.0, -.15), "cm"),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 10, colour = "black", margin = margin(l = 10, r = -20)), 
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_text(size = 10),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "none") 
+CS_07
+```
+
+
+```{r}
+ggsave("../output/osprey_O7.png", plot = CS_07, height = 30, width = 48, units = "mm", dpi = 300)
+```
+
+
+# Patchwork
+```{r patch, fig.width=12, fig.height=8}
+CS_01 + CS_02 + CS_03 +
+  CS_04 + CS_05 + CS_06 + CS_07
+```
+
+
+# Extract legend
+
+
+```{r}
+### Make a dummy plot in ggplot
+leg_plot <- 
+  CS_07 +
+  #scale_fill_manual(values=wes_palette(name="Moonrise3", n = 4, type = "discrete")) +
+  #scale_shape_manual(name = '') +
+  #scale_fill_manual(name = 'NULL', values =  installation_palette) +
+  theme(legend.key = element_blank(),
+        legend.background = element_rect(fill = "transparent"),
+        legend.direction = "vertical",
+        legend.title = element_blank(),
+        legend.text = element_text(face = 'italic'),
+        legend.position = "bottom")
+
+### Plot legend separately using ggpubr
+library(ggpubr)
+legend <- 
+  leg_plot %>% 
+  get_legend() %>% 
+  as_ggplot() +
+  #annotate(geom = element_rect(size = 1, fill = "transparent")) #+
+  theme(plot.background = element_rect(fill = "transparent", colour = "transparent"))
+
+### Save
+ggsave(legend, filename = '../output/teleostri_legend.png', width = 40, height = 64, units = 'mm', dpi = 300)
+```
+
+
+
+
+# Build up plot
+
+```{r}
+#osprey_ri_detail <- 
+osprey_main +
+   #geom_point(data = project_serials_teleosts, aes(x = Long, y =Lat), colour = 'black', fill = 'red', size = 4,  stroke = 0.5, shape = 23 ) +    # Tagging locations
+   annotation_custom(ggplotGrob(CS_01), 
+                    xmin = 146.49, xmax = 146.54, ymin = -13.80, ymax = -13.78) +   # ylim 0.1
+   annotation_custom(ggplotGrob(CS_02), 
+                    xmin = 146.5, xmax = 146.55, ymin = -13.86, ymax = -13.82) +     # ylim 0.2    
+#   annotation_custom(ggplotGrob(CS_03), 
+#                     xmin = 146.44, xmax = 146.49, ymin = -13.91, ymax = -13.81) +   # ylim 0.6
+#   annotation_custom(ggplotGrob(CS_04), 
+#                    xmin = 146.58, xmax = 146.63, ymin = -13.78, ymax = -13.75) +   # ylim 0.4
+#   annotation_custom(ggplotGrob(CS_05), 
+#                    xmin = 146.6, xmax = 146.65, ymin = -13.78, ymax = -13.75) +    # ylim 0.1
+   annotation_custom(ggplotGrob(CS_06), 
+                    xmin = 146.5, xmax = 146.55, ymin = -13.93, ymax = -13.86) +   # ylim 0.5
+   annotation_custom(ggplotGrob(CS_07), 
+                    xmin = 146.535, xmax = 146.585 , ymin = -13.965, ymax = -13.935)      # ylim 0.1
+
+#osprey_ri_detail
+```
+
+
+
+
+
+
+```{r}
+
+ggsave("../output/osprey_ri_detail.png", plot = osprey_ri_detail, width = 220, units = "mm", dpi = 300)
+
+
+```
+
+
+
+
+
+
+
+# Bubble plots
+```{r}
+
+
+station_ri_stats_teleosts %>% 
+  filter(station_name_long == "North_Horn") %>% 
+  ggplot(aes(x = Scientific_name, y = mean)) +
+  geom_bar(stat="identity", position="dodge", color="black",fill = "steelblue", width = 0.95) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
+  geom_point(aes(x = c(1, 2), y = c(0.4, 0.4), size = mean*100), stroke = 0.5, pch = 21) +
+  scale_size(range = c(30, 600)) +
+  #scale_x_discrete(labels = c("Silvers", "Greys"))+
+ # scale_x_discrete(labels = NULL)+
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.7), breaks = c( 0.4, 0.6)) +
+  theme(#panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        #axis.line = element_line(),
+        panel.background = element_rect(fill = "white", colour = "black"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent"),
+        legend.position = "bottom")  +
+  labs(y= "", x = "")
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Overview map
+```{r osprey-overview-map}
+#osprey_overview <- 
+  ggplot() +
+  geom_polygon(data = osprey_reef, aes(x = long, y = lat, group = group), color = 'grey30', fill = 'grey80', lwd = 0.3) +
+  geom_polygon(data = osprey_dryreef, aes(x = long, y = lat, group = group), color = 'grey10', fill = 'grey60', lwd = 0.3) +
+  coord_quickmap(ylim = c(-14.1, -13.75), xlim = c(146.5, 146.75)) +
+  theme(axis.title = element_blank(), 
+        #axis.text = element_blank(),
+        #axis.ticks = element_blank(),
+        #panel.grid = element_line(colour = "#ECEFF1"),
+        panel.border = element_rect(colour = "black", fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+      draw_image('../data/North_Pointer.jpg', x = 146.65, y = -13.8, scale = 10000000)
+
+
+
+#osprey_overview
+```
+
+
+# Test plot
+```{r}
+
+
+
+
+```
+
+
+
+
+# Run whole script
+```{r run-whole-script, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+#
+```
+
+
+
+

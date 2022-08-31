@@ -37,3 +37,6 @@ legend_bigmov <-
   theme(plot.background = element_rect(fill = "transparent", colour = "transparent"))
 
 legend_bigmov
+
+
+#ggsave(legend_bigmov, filename = 'output/bigmover_legend.png', width = 62, height = 100, units = 'mm', dpi = 400)
