@@ -32,6 +32,7 @@ library(sp)
 library(rgdal)
 library(rgeos)
 library(adehabitatHR)
+library(patchwork)
 library(leaflet)
 library(ggmap)    # for fortifying shapefiles
 library(readxl)
@@ -68,7 +69,6 @@ flinders_base
 ```
 
 
-### MAYBE DON"T NEED THE NEXT 3 CHUNKS -> REPEATED FROM FLINHOLM SCRIPT
 
 ## Receiver locations
 
@@ -99,19 +99,41 @@ site_list
 ```
 
 
-asdfasdf
 ## Plot VR2W locs
-```{r flinders-sites, fig.width = 8, fig.height = 8}
-#flinders_vr2s <- 
+```{r flinders-sites,}
+flinders_vr2s <- 
   flinders_base +
   geom_point(data = site_list, aes(x = station_longitude, y =station_latitude), 
              colour = 'grey10', fill = 'lightskyblue', size = 8,  stroke = 0.3, shape = 21 )+
   geom_text(data = site_list, aes(x = station_longitude, y =station_latitude, label = station_name), size = 3) +
-   annotate("text", x = 148.1, y = -17.3, label = "Flinders Reef - VR2W locations", 
-           colour = "black", size = 5, fontface = 2, family = "Helvetica", hjust = 0)
-#ggsave(flinders_vr2s, filename = '../output/receivers_flinders.png', width = 200, height = 200, units = 'mm', dpi = 400)
+  scalebar(holmes_reef, dist = 8, dist_unit = "km", transform = TRUE, model = "WGS84",            # Geo properties
+           location = 'bottomleft', anchor = c(x = 148.1, y = -17.9),                                # Position of bar
+           family = "Arial", st.size = 3.6, st.dist = 0.003,                                            # Text properties
+           height = 0.0008, border.size = 0.4, st.bottom = FALSE) +
+    draw_image('../data/North_Pointer.jpg', x = 148.13, y = -17.33, hjust = 0.5, vjust = 0.5, scale = 0.075)
+flinders_vr2s
+```
+
+
+
+
+
+
+
+```{r}
+ggsave(flinders_vr2s, filename = '../output/receivers_flinders.png', width = 200, height = 200, units = 'mm', dpi = 400)
+```
+
+
+```{r patch-together, fig.height = 10, fig.width = 16}
+
+#(osprey_vr2s + bougainville_vr2s)/
+  
+  (holmes_vr2s + flinders_vr2s)
+
 
 ```
+
 
 
 # Plot Flinders movers

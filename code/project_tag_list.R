@@ -4,7 +4,7 @@
 # Then pairs up the IDs with the metadata from the regional_tag_list (contains lats/longs etc)
 ## This script is designed to be called on from external Rmd files
 ## If you want to run from within this script:
-## setwd("code")
+##setwd("code")
 
 getwd()
 #rm(list=ls())

@@ -94,7 +94,7 @@ straya <-
         plot.background = element_rect(fill = "transparent", colour = "transparent")) +
   geom_rect(aes(xmin = 143, xmax = 153, ymin = -24, ymax = -10), color = "white", fill = 'transparent', lwd = 0.25) +
   coord_quickmap(ylim = c(-45, -8), xlim = c(112, 154)) 
-#straya
+straya
 ```
 
 

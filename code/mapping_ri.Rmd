@@ -33,6 +33,7 @@ library(rgeos)
 library(adehabitatHR)
 library(leaflet)
 library(cowplot)
+library(ggpubr)
 library(ggmap)    # for fortifying shapefiles
 library(ggsn) # Package with built in scale bar and north point
 library(readxl)
@@ -77,7 +78,7 @@ Would be good to shrink the gbr feats object a bit but it doesn't work
 ```{r}
 #cs_dryreef_df <-  cs_dryreef_df %>% filter(long <149) # Not relevant. Also if plotting eastern reefs, the dry reefs layer is best
 cs_reef_df <- cs_reef_df %>% filter(long <149)
-straya <- world %>% filter(region == 'Australia') %>% filter(lat >-18)
+#straya <- map_data("world") %>% filter(region == 'Australia') %>% filter(lat >-19)
 
 ```
 
@@ -211,7 +212,7 @@ ri_basemap
 
 # Basemap
 ```{r basemap2, fig.width=17}
-ri_basemap2 <- straya %>% 
+ri_basemap2 <- coast %>% 
   ggplot() +
   geom_polygon(aes(x = long, y = lat, group = group), fill = 'grey50', color = 'grey50', size = 6) +
   geom_polygon(data = gbr_shelf_df, aes(x = long, y = lat, group = group), fill = 'white',  size = .1) +
@@ -223,7 +224,7 @@ ri_basemap2 <- straya %>%
         #panel.grid = element_line(colour = "#ECEFF1"),
         panel.border = element_rect(colour = "black", fill = "transparent"),
         panel.background = element_rect(fill = "transparent"),
-        plot.background = element_rect(fill = "transparent", colour = "transparent")) +
+        plot.background = element_rect(fill = "white", colour = "transparent")) +
   coord_quickmap(ylim = c(-18, -13.5), xlim = c(144, 149))
 
 ri_basemap2
@@ -233,12 +234,39 @@ ri_basemap2
 ## Now need to run ri_sharks_byinstallation to generate bar plots
 ### Unique positions for each reef
 ```{r}
+ri_sharks_byreef <- 
 ri_basemap2 +
-  annotation_custom(ggplotGrob(ri_osprey_bar), xmin = 146.8, xmax = 148.8, ymin = -14.8, ymax = -13.3) +
-  annotation_custom(ggplotGrob(ri_bougainville_bar), xmin = 147.1, xmax = 149.1, ymin = -16.2, ymax = -14.7) +
-  annotation_custom(ggplotGrob(ri_holmes_bar), xmin = 145.4, xmax = 147.4, ymin = -17.2, ymax = -15.7) +
-  annotation_custom(ggplotGrob(ri_flinders_bar), xmin = 145.9, xmax = 147.9, ymin = -18.5, ymax = -17) 
-  
+  annotation_custom(ggplotGrob(ri_osprey_bar), xmin = 147.1, xmax = 149.1, ymin = -14.8, ymax = -13.3) +
+  annotation_custom(ggplotGrob(ri_bougainville_bar), xmin = 147.4, xmax = 149.4, ymin = -16.1, ymax = -14.6) +
+  annotation_custom(ggplotGrob(ri_holmes_bar), xmin = 145.4, xmax = 147.4, ymin = -17.1, ymax = -15.6) +
+  annotation_custom(ggplotGrob(ri_flinders_bar), xmin = 145.9, xmax = 147.9, ymin = -18.5, ymax = -16.9) +
+   scalebar(cs_dryreef_df, dist = 100, dist_unit = "km", transform = TRUE, model = "WGS84",            # Geo properties
+           location = 'bottomleft', anchor = c(x = 144, y = -18),                                # Position of bar
+           family = "Arial", st.size = 3, st.dist = 0.007,                                            # Text properties
+           height = 0.003, border.size = 0.5, st.bottom = FALSE) +
+  draw_image('../data/North_Pointer.jpg', x = 143.6, y = -14.3, scale = 0.5) +
+  annotation_custom(ggplotGrob(straya), xmin = 143.7, xmax = 145.7, ymin = -17.8, ymax = -16.3)
+
+ri_sharks_byreef  
+
+ri_sharks_byreef + sex_ri_bar
+
+
+main_ri_fig <- 
+ggarrange(ri_sharks_byreef, 
+          ggplot() + theme_void(),     # Adding in a NULL second plot to control how close the two other plots are in conjuction with widths below
+          sex_ri_bar_labeled, 
+          ncol = 3, widths = c(1.7, 0.0, 0.5),
+         # labels = c("a", "", "b"),
+          font.label = list(size = 10, color = "black", face = "bold", family = "Helvetica", position = "top"))
+
+main_ri_fig
+
+
+
+ggsave("../output/ri_sharks_byreef.png", plot = main_ri_fig, width = 190, height = 120, units = "mm", dpi = 300)
+
+
 ```
 
 

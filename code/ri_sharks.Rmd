@@ -38,6 +38,7 @@ library(rgdal)
 library(rgeos)
 library(adehabitatHR)
 library(leaflet)
+library(ggpubr)
 library(ggmap)    # for fortifying shapefiles
 library(readxl)
 library(scatterpie)
@@ -152,7 +153,7 @@ ri_greys_bar <-
 
 ri_greys_bar
   
-ggsave(ri_greys_bar, filename = "../output/ri_greys_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+#ggsave(ri_greys_bar, filename = "../output/ri_greys_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 ```
 
 
@@ -174,17 +175,17 @@ grs_ri_sex_bar <-
   ggplot(aes(x = Sex, y = mean)) +
   geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
-  scale_y_continuous(expand = c(0,0), limits = c(-0.02,1), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,1), breaks = c(0, 0.2, 0.4, 0.6, 0.8), position = "right") +
   scale_x_discrete(labels = c('Female', 'Male')) +
-  theme(axis.text.y = element_blank(), # Can get rid of this as plotting next to the installation plot
+  theme(#axis.text.y = element_blank(), # Can get rid of this as plotting next to the installation plot
         axis.title.y = element_blank(), # Ditto
-        axis.ticks.y = element_blank(), # Ditto
+        #axis.ticks.y = element_blank(), # Ditto
         panel.grid = element_line(colour = "#ECEFF1"),
         panel.border = element_rect(colour = "black", fill = "transparent"),
         panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", colour = "transparent"),
         legend.position = "bottom")  +
-  labs(y= "Ri (mean ± SE)", x = "Sex")
+  labs(y= "Ri (mean ± SE)", x = "Grey Reef")
 
 grs_ri_sex_bar
 
@@ -244,17 +245,17 @@ silvers_ri_sex_bar <-
   ggplot(aes(x = Sex, y = mean)) +
   geom_bar(stat="identity", position="dodge", color="black", width = 0.95) +
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, position=position_dodge(.9)) +
-  scale_y_continuous(expand = c(0,0), limits = c(-0.02,1), breaks = c(0, 0.2, 0.4, 0.6, 0.8)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-0.02,1), breaks = c(0, 0.2, 0.4, 0.6, 0.8), position = "right") +
   scale_x_discrete(labels = c('Female', 'Male')) +
-  theme(axis.text.y = element_blank(), # Can get rid of this as plotting next to the installation plot
+  theme(#axis.text.y = element_blank(), # Can get rid of this if plotting next to the installation plot
         axis.title.y = element_blank(), # Ditto
-        axis.ticks.y = element_blank(), # Ditto
+        #axis.ticks.y = element_blank(), # Ditto
         panel.grid = element_line(colour = "#ECEFF1"),
         panel.border = element_rect(colour = "black", fill = "transparent"),
         panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", colour = "transparent"),
         legend.position = "bottom")  +
-  labs(y= "Ri (mean ± SE)", x = "Sex")
+  labs(y= "Ri (mean ± SE)", x = "Silvertip")
 
 ggsave(silvers_ri_sex_bar, filename = "../output/ri_silvers_sex_bar.png", width = 80, height = 100, units = 'mm', dpi = 600)
 silvers_ri_sex_bar
@@ -275,6 +276,28 @@ ggsave(silvers_riplot, filename = "../output/riplot_silvers.png", width = 160, h
 - Grey reef sharks more uniformly resident across reefs and also between sexes, with highest residency at Osprey Reef and in females
 - Silver tip sharks pretty much show the opposite pattern: much more variable residency, with LOWEST residency at Osprey Reef and in famales
 
+
+# Plot sex Ri together
+
+```{r}
+sex_ri_bar <- 
+silvers_ri_sex_bar/grs_ri_sex_bar
+
+# OR...
+sex_ri_bar <- 
+ggarrange(silvers_ri_sex_bar, grs_ri_sex_bar, ncol = 1)
+
+
+sex_ri_bar_labeled <- 
+ annotate_figure(sex_ri_bar, right = text_grob("Residency index", vjust = 0.5, rot = 270, family = 'Arial', size = 13))
+
+sex_ri_bar_labeled
+
+
+ggsave(sex_ri_bar_labeled, filename = "../output/riplot_sex.png", width = 60, height = 96, units = 'mm', dpi = 300)
+
+sex_ri_bar
+```
 
 
 

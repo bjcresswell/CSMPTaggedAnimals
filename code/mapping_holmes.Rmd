@@ -32,6 +32,8 @@ library(sp)
 library(rgdal)
 library(rgeos)
 library(adehabitatHR)
+library(ggsn)
+library(cowplot)
 library(leaflet)
 library(ggmap)    # for fortifying shapefiles
 library(readxl)

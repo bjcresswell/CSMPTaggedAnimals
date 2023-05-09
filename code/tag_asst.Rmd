@@ -30,6 +30,7 @@ getwd()
 library(writexl)
 library(readxl)
 library(lubridate)
+library(magrittr)
 library(tidyverse)
 ```
 
@@ -92,14 +93,14 @@ We know we have 196 detected transmitter IDs in our detection database, but how 
 ## Therefore firstly need to generate a list of project detections
 
 ```{r}
-project_detection_list <- project_tag_list %>% 
+project_detection_list <- project_tags_all %>% 
   merge(detected_tag_list, by = 'transmitter_id')
 ```
 Only 125 of the 137 deployed transmitter IDs - there's 12 missing. Let's figure out which ones they are
 
 ## Which ones not detected
 ```{r}
-missing_tag_list <- project_tag_list %>% 
+missing_tag_list <- project_tags_all %>% 
   anti_join(project_detection_list, by = 'transmitter_id') %>% 
   print
 ```
@@ -133,12 +134,6 @@ print(project_animal_list)
 project_teleosts %>% 
   filter(Type != "press")
 ```
-
-
-
-
-
-
 
 
 

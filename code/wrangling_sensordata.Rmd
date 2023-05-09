@@ -1,0 +1,52 @@
+---
+title: "Calibrating sensor data"
+aauthor: "Ben Cresswell"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ html_document:
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load required packages
+```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+```
+
+# Housekeeping
+```{r warning=FALSE}
+#rm(list=ls()) # Clear out environment if necessary
+```
+
+We start with the four separate files for teleosts and sharks, temperature and pressure as there are difference calibration values for each
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+
+

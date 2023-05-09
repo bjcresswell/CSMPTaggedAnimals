@@ -35,6 +35,11 @@ library(tidyverse)
 ```
 
 # Load data
+
+```{r}
+load(file = "../data/RData/alldata.RData")
+```
+
 ```{r}
 # All greys
 grs_all <- 
@@ -104,16 +109,28 @@ grs_all %>%
 
 # What about movements a smaller scale? Say between N and S Flinders or E and W Holmes? Or between Osprey wall and lagoon?
 
-## Osprey
+## Osprey - by station
 ```{r fig.height = 10, fig.width = 16}
 os_grs %>%
-  ggplot(mapping = aes(x = detection_timestamp, y = site_code)) + 
+  ggplot(mapping = aes(x = detection_timestamp, y = station_name_long)) + 
   xlab("Date") + 
   ylab("Tag") +
   geom_point() +
   facet_wrap(~ transmitter_id)
 ```
+## Osprey - whole installation
+```{r fig.height = 10, fig.width = 16}
+os_grs_installation_abacus <- 
+os_grs %>%
+  ggplot(mapping = aes(x = detection_timestamp, y = transmitter_id)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  theme_light()
 
+os_grs_installation_abacus
+ggsave(filename = '../output/os_grs_installation_abacus.png', os_grs_installation_abacus , width = 600, height = 200, units = 'mm', dpi = 300)
+```
 
 
 
