@@ -30,6 +30,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(writexl)
 library(readxl)
 library(lubridate)
+library(magrittr)
 library(tidyverse)
 #library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
 ```
@@ -37,7 +38,10 @@ library(tidyverse)
 # Load data
 
 ```{r}
-load(file = "../data/RData/alldata.RData")
+load(file = "data/RData/alldata.RData")
+
+# Direct from wrangling folder
+load("../CSMPWrangling/data/RData/alldata.RData")
 ```
 
 ```{r}
@@ -58,7 +62,7 @@ summary(grs_all$Location)
 ```{r}
 # Greys tagged at Osprey Reef
 os_grs <- alldata %>% 
-  filter(Location == 'Osprey') %>% 
+  filter(installation_name == 'Osprey') %>% 
   filter(Common_name == 'Grey Reef')
 
 # Greys tagged at Bougainville Reef - 0
@@ -81,7 +85,7 @@ fr_grs <- alldata %>%
 # Large scale movements - do any individuals move between entire reef sites?
 
 ##  Will explore using abacus plot, faceted out by installation name (of where receiver was)
-```{r fig.height = 10, fig.width = 16}
+```{r fig.height = 100/25.4, fig.width = 160/25.4}
 grs_ab_main <- 
 grs_all %>%
   ggplot(mapping = aes(x = detection_timestamp, y = installation_name)) + 
@@ -110,26 +114,170 @@ grs_all %>%
 # What about movements a smaller scale? Say between N and S Flinders or E and W Holmes? Or between Osprey wall and lagoon?
 
 ## Osprey - by station
-```{r fig.height = 10, fig.width = 16}
+```{r fig.height = 100/25.4, fig.width = 160/25.4}
+# Whole cohort
 os_grs %>%
   ggplot(mapping = aes(x = detection_timestamp, y = station_name_long)) + 
   xlab("Date") + 
   ylab("Tag") +
   geom_point() +
   facet_wrap(~ transmitter_id)
-```
-## Osprey - whole installation
-```{r fig.height = 10, fig.width = 16}
-os_grs_installation_abacus <- 
+
+# TP only
 os_grs %>%
+  filter(Type != "pinger") %>% 
+  ggplot(mapping = aes(x = detection_timestamp, y = station_name_long)) + 
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  facet_wrap(~ transmitter_id)
+```
+
+
+## Osprey - whole installation
+
+# If you want one row per T/P animal you need to combine their separate temp and press logs:
+
+```{r}
+# All grey reef shark sensor data
+grs_sensor_data <- 
+  grs_all %>% 
+  filter(!is.na(Sensor.Value)) %>% 
+  filter(!is.na(Type)) %>% 
+  droplevels()
+
+# Osprey only sensor data
+osp_grs_sensor_data <- 
+  grs_sensor_data %>% 
+  filter(installation_name == 'Osprey')
+
+# All grey reef shark non-sensor data
+grs_non_sensor_data <- 
+  grs_all %>% 
+  filter(Type == "pinger") %>% 
+  droplevels()
+
+# Osprey only non-sensor data
+osp_grs_nonsensor_data <- 
+  grs_non_sensor_data %>% 
+  filter(installation_name == 'Osprey')
+
+```
+
+
+
+## Assign just one transmitter id to each sensor tag
+
+Currently each animal has 2 x transmitter IDs for their tag - one for temp and one for pressure. If we want to to look at individual animal patterns we'll need to combine these. First will need to check which transmitter IDs go together, based on the serial number (which is the same for both T and P components):
+```{r}
+osp_grs_sensor_data %>% 
+  dplyr:: select(transmitter_id, Serial, Org_type, Type) %>% 
+  distinct() %>% 
+  arrange(transmitter_id)
+```
+
+
+Lower-even ID for temp goes with a higher-odd ID for press: Need to +1 to every temp/even ID
+
+We'll do this and at the same time will calibrate using the calibration coefficients (slope and intercept) for the tags as provided by Vemco.
+
+Calibration coefficients:
+
+    Slope	    Intercept
+P   0.9097	  -3.6388
+T   0.1575	  -5.157
+
+# Calculate temp
+```{r}
+osp_grs_temp_data <- 
+  osp_grs_sensor_data %>%
+  filter(Org_type == "Elasmobranch") %>% 
+  filter(ID %% 2 != 1)  %>% 
+  #dplyr::select(transmitter_id) %>% 
+  mutate(ID = ID+1) %>% 
+  mutate(transmitter_id = factor(paste(Freq, Space, ID, sep = '-'))) %>% 
+  mutate(Temp = `Sensor.Value` * Slope + Intercept)
+
+```
+
+# Calculate depth 
+```{r}
+osp_grs_press_data <- 
+  osp_grs_sensor_data %>%
+  filter(Org_type == "Elasmobranch") %>% 
+  filter(Type =="press") %>% 
+  mutate(Depth = `Sensor.Value` * Slope + Intercept) %>% 
+  mutate(Depth = if_else(Depth <0, 0, Depth)) # Have a few negative values (up to c. -3) - clearly cannot be out of the water so will reset to 0
+```
+
+# Combine together so that temp and depth in the same dataframes
+```{r}
+osp_grs_tp_data <- 
+  osp_grs_temp_data %>% 
+  full_join(osp_grs_press_data) %>% 
+  #dplyr::select(transmitter_id, detection_timestamp, station_name, station_name_long, Scientific_name, Date_tagged, 
+   #      Location_tagged, Site_tagged, Sex, FL, TL, Lat, Long, Temp, Depth) %>% 
+  #filter(!grepl("Lagoon", station_name_long),        # just a few shark detections (2 individs 14041 and 14059) from lagoon1 so filtering out
+#         station_name_long != "Overnight_Mooring"   # may need to leave ONM out as it only has shallow detections but will leave in for now
+       # ) %>%  
+ # filter(detection_timestamp < as.Date("2022-11-01 00:00:01")) %>% 
+  arrange(detection_timestamp) %>% 
+  droplevels()
+```
+
+# Combine sensor and non-sensor data (Osprey only here)
+```{r}
+os_grs2 <- 
+  osp_grs_tp_data %>% 
+  full_join(osp_grs_nonsensor_data)
+
+```
+
+
+```{r fig.height = 100/25.4, fig.width = 160/25.4}
+
+os_grs2 %>%
+  dplyr::select(transmitter_id, Sex) %>% 
+  unique() %>% 
+  group_by(transmitter_id)  %$% 
+  summary(Sex)
+  
+
+
+os_grs_tp_abacus <- 
+os_grs2 %>%
+  filter(Type != "pinger") %>% 
+  filter(detection_timestamp > as.Date("2021-10-30 00:00:00")) %>% 
+  filter(detection_timestamp < as.Date("2022-10-30 00:00:00")) %>% 
   ggplot(mapping = aes(x = detection_timestamp, y = transmitter_id)) + 
   xlab("Date") + 
   ylab("Tag") +
   geom_point() +
   theme_light()
 
-os_grs_installation_abacus
-ggsave(filename = '../output/os_grs_installation_abacus.png', os_grs_installation_abacus , width = 600, height = 200, units = 'mm', dpi = 300)
+os_grs_pinger_abacus <- 
+os_grs2 %>%
+  filter(Type == "pinger") %>% 
+  #filter(detection_timestamp > as.Date("2021-10-30 00:00:00")) %>% 
+  #filter(detection_timestamp < as.Date("2022-10-30 00:00:00")) %>% 
+  ggplot(mapping = aes(x = as.Date(detection_timestamp), y = as.character(transmitter_id))) + 
+  #annotate("text", x = as.Date("2021-10-30 00:00:00"), y = 2, lab = "blah") + # Boxes to indicate depth movement study period
+  geom_vline(xintercept = as.Date("2021-10-30 00:00:00"), colour = "blue", linewidth = 2) +
+  geom_vline(xintercept = as.Date("2022-10-30 00:00:00"), colour = "blue", linewidth = 2) +
+  xlab("Date") + 
+  ylab("Tag") +
+  geom_point() +
+  theme_minimal()
+
+os_grs_tp_abacus
+os_grs_pinger_abacus
+
+#os_grs_installation_abacus
+
+getwd()
+
+ggsave(filename = "output/os_grs_tp_abacus.jpg", os_grs_tp_abacus , width = 160, height = 100, units = 'mm', dpi = 300)
+ggsave(filename = "output/os_grs_pinger_abacus.jpg", os_grs_pinger_abacus , width = 160, height = 100, units = 'mm', dpi = 300)
 ```
 
 
