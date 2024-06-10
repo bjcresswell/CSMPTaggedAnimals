@@ -72,7 +72,7 @@ The residency index is the number of days an animal was detected at each receive
 
 Data wrangling and station/installation Ri calculations conducted in separate scripts
 ```{r load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
-source("ri_installation.R")
+source("code/ri_installation.R")
 ```
 
 
@@ -90,11 +90,27 @@ installation_ri <- installation_ri %>%
 # Split up by reef {.tabset .tabset-faded}
 
 ## Osprey  
+### NB Osprey has TP tagged animals so we need a way of handling this.
+Also only want GTS
 ```{r osprey-ri, echo=FALSE, message=FALSE, warning=FALSE}
 sharkri_osprey <- 
   installation_ri %>% 
-  filter(installation_name == 'Osprey')
+  filter(installation_name == 'Osprey') %>% 
+  filter(Scientific_name == "Carcharhinus amblyrhynchos") %>% 
+  filter(tag_installation == "Osprey") %>% 
+  #filter(Type != "pinger") %>% 
+  group_by(Serial) %>% 
+  slice_min(ri_installation) %>%   # Leaves in the highest value of the 2 Ri scores for each animal (one from T and one from P)
+  ungroup() %>% 
+  group_by(Serial, ri_installation) %>% # Then if there are animals that have the same Ri for both T and P, get rid of one of them
+  slice(1) %>% 
+  ungroup() %>% 
+  arrange(Serial)
+
+sharkri_osprey
 ```
+
+
 
 ## Bougainville
 ```{r osprey-ri, echo=FALSE, message=FALSE, warning=FALSE}
@@ -132,16 +148,27 @@ sharkri_flinders <-
   
 ## Osprey {.tabset .tabset-faded}
 ```{r grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
-osprey_stats <- 
+(osprey_stats <- 
   sharkri_osprey %>% 
-  filter(Org_type == "Elasmobranch") %>% 
   group_by(Scientific_name) %>% 
   summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
-  mutate_if(is.numeric, round, 2) %>% 
-  print() 
+  mutate_if(is.numeric, round, 2)) 
+
+# Check again but exclude the two individuals that did not stay around for long
+(osprey_stats <- 
+  sharkri_osprey %>% 
+  filter(transmitter_id != "A69-9001-64092") %>% 
+  filter(transmitter_id != "A69-9001-64109") %>%   
+  group_by(Scientific_name) %>% 
+  summarise(mean = mean(ri_installation), sd = sd(ri_installation), se = std.error(ri_installation)) %>% 
+  mutate_if(is.numeric, round, 2))
+
 
 #osprey_stats %>%   write.csv("../output/sharkri_osprey.csv")
+```
 
+
+```{r grs-stats-1, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
 ri_osprey_bar <- 
   osprey_stats %>% 
   ggplot(aes(x = Scientific_name, y = mean)) +

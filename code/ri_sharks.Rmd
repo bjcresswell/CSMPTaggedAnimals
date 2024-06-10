@@ -2,11 +2,6 @@
 title: "Analysing residency indices - Sharks"
 author: "Ben Cresswell"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-knit: (function(inputFile, encoding) { 
-      out_dir <- "../output";
-      rmarkdown::render(inputFile,
-                        encoding=encoding, 
-                        output_file=file.path(dirname(inputFile), out_dir, 'Ri_shark_analysis.html')) })
 output: 
  html_document:
     code_folding: show
@@ -30,23 +25,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
-# Packages
-library(knitr)
-library(kableExtra)
-library(sp)
-library(rgdal)
-library(rgeos)
-library(adehabitatHR)
-library(leaflet)
-library(ggpubr)
-library(ggmap)    # for fortifying shapefiles
-library(readxl)
-library(scatterpie)
-library(plotrix)   # Calculates SE
-library(patchwork)
-library(collapse)
-library(magrittr)
-library(tidyverse)
+source("code/packages.R")
 ```
 
 ```{r housekeeping, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
@@ -73,7 +52,7 @@ The residency index is the number of days an animal was detected at each receive
 
 Data wrangling and station/installation Ri calculations conducted in separate scripts
 ```{r load-data, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
-source("ri_installation.R")
+source("code/ri_installation.R")
 ```
 
 
@@ -81,9 +60,6 @@ source("ri_installation.R")
 ```{r}
 installation_ri %$% 
   summary(installation_name)
-
-installation_ri <- installation_ri %>% 
-  mutate(installation_name = fct_relevel(installation_name, c('Osprey', 'Bougainville', 'Holmes', 'Flinders'))) 
 ```
 
 
@@ -96,15 +72,11 @@ ri_greys <-
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus amblyrhynchos')
 
-ri_greys_table <- 
-  ri_greys %>% 
-  head() %>% 
-  kbl() %>%
-  kable_minimal()
+ri_greys
 ```
 
 
-## Silver tips  
+## Silvertips  
 - Dataframe preview:  
 
 ```{r silvers-ri, echo=FALSE, message=FALSE, warning=FALSE}
@@ -112,12 +84,7 @@ ri_silvers <-
   installation_ri %>% 
   filter(Scientific_name == 'Carcharhinus albimarginatus')
 
-ri_silvers_table <-  
-  ri_silvers %>% 
-  head() %>% 
-  kbl() %>%
-  kable_minimal()
-# Note: this kable code makes for a decent table when knitted but horrible to try to produce stand-alone table
+ri_silvers
 ```
 
 
@@ -136,7 +103,7 @@ grs_installation_stats <-
   print() 
 
 grs_installation_stats %>% 
-  write.csv("../output/ri_greys.csv")
+  write.csv("output/ri_greys.csv")
 
 ri_greys_bar <- 
   grs_installation_stats %>% 
@@ -168,7 +135,7 @@ grs_sex_stats <-
   print()
 
 grs_sex_stats %>% 
-  write.csv("../output/ri_greys_sex.csv")
+  write.csv("output/ri_greys_sex.csv")
 
 grs_ri_sex_bar <-
   grs_sex_stats %>% 
@@ -213,7 +180,7 @@ silvers_installation_stats <-
   print() 
 
 silvers_installation_stats %>% 
-  write.csv("../output/ri_silvers.csv")
+  write.csv("output/ri_silvers.csv")
 
 ri_silvers_bar <- 
   silvers_installation_stats %>% 
@@ -227,7 +194,7 @@ ri_silvers_bar <-
         plot.background = element_rect(fill = "transparent", colour = "transparent"),
         legend.position = "bottom")  +
   labs(y= "Ri (mean ± SE)", x = "Installation (reef)")
-ggsave(ri_silvers_bar, filename = "../output/ri_silvers_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
+ggsave(ri_silvers_bar, filename = "output/ri_silvers_bar.png", width = 160, height = 100, units = 'mm', dpi = 600)
 ```
 
 
