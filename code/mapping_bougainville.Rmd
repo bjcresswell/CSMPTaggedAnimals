@@ -43,7 +43,7 @@ library(tidyverse)
 # First need to specify data from which to draw Bougainville Reef area data:
 ```{r read-bougainville-data, message=FALSE, warning=FALSE}
 bougainville_reef <- 
-  readOGR("../data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% 
+  readOGR("data/3dgbr_geomorph/shape", "coralsea_dryreef") %>% 
   fortify() %>% 
   filter(long < 150) %>% 
   filter(lat > -17)
@@ -120,11 +120,27 @@ bougainville_vr2s
 ```
 
 
+# Plot without receivers
+
+## Plot
+```{r bougainville-full, fig.width=160/25.4, fig.height=100/25.4}
+bougainville_full <- 
+  bougainville_base 
+  ggsn::scalebar(bougainville_reef, dist = 2, dist_unit = "km", transform = TRUE, model = "WGS84",            # Geo properties
+           location = 'bottomleft', anchor = c(x = 147.07, y = -15.53),                                # Position of bar
+           family = "Arial", st.size = 3.1, st.dist = 0.0002,                                            # Text properties
+           height = 0.0002, border.size = 0.3, st.bottom = FALSE) 
+    cowplot::draw_image('data/North_Pointer.jpg', x = 147.076, y = -15.465, hjust = 0.5, vjust = 0.5, scale = 0.01)
+bougainville_full
+
+
+```
 
 
 
 ```{r bougainville-sites}
-ggsave(bougainville_vr2s, filename = '../output/receivers_bougainville.png', width = 200, height = 200, units = 'mm', dpi = 400)
+ggsave(bougainville_vr2s, filename = 'output/receivers_bougainville.png', width = 160, height = 100, units = 'mm', dpi = 400)
+ggsave(bougainville_full, filename = 'output/bougainville_map.jpg', width = 160, height = 100, device = "jpeg", units = 'mm', dpi = 300)
 ```
 
 ```{r}
