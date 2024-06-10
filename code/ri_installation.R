@@ -3,18 +3,17 @@
 
 ## This script wrangles out residency indices (Ri) for each individual per location.  Ri here is calculated at the installation level (rather than individual station)
 ## Mainly going to be interesting for the shark data, but teleost values are retained also
-## This script is designed to be called on from the main Ri Rmd document. It you want to run code here, from within this script you need to run this first:
-##setwd("code")
 
+source("code/packages.R")
 getwd()
 #rm(list=ls())
-setwd('../code')
 
-# Load main data file
-load(file = "../data/RData/alldata.RData")
+
+# Load main data file if required (from CSMPWrangling project)
+load(file = "../CSMPWrangling/data/RData/alldata.RData")
 
 # And for other required data, run the project_tag_list script:
-source("../code/project_tag_list.R")
+source("code/project_tag_list.R")
 
 # Select only variables and organisms required for this analysis
 installation_ri <-
@@ -27,12 +26,13 @@ installation_ri <-
                 detection_timestamp,                                                  # 
                 installation_name, station_name, station_name_long,                   # Variables relating to detecting receiver -> need to leave station info in for now to pair up with retrievals
                 #deploymentdatetime_timestamp, recoverydatetime_timestamp,            # Will add in deployment dates later (accurate ones which we'll apply to whole proj, not individual deps)
-                Common_name, Scientific_name, Date, 
-                Location, Site, Sex, Org_type) %>%                                    # Leave in the organism and tagging info
-  mutate(tag_date = as.Date(Date), 
+                Common_name, Scientific_name, Date_tagged, 
+                Type,
+                Location_tagged, Site_tagged, Sex, Org_type) %>%                                    # Leave in the organism and tagging info
+  mutate(tag_date = as.Date(Date_tagged), 
          detection_date = as.Date(detection_timestamp),                               # One row/observation for every day the organism detected in array
-         tag_subinstallation = Location, 
-         tag_station = Site, 
+         tag_subinstallation = Location_tagged, 
+         tag_station = Site_tagged, 
          .keep = 'unused') %>% 
   mutate(tag_installation = case_when(grepl("Boug", tag_subinstallation) ~ "Bougainville",  # Need a variable that records the tagging installation name
                                       grepl("Flin", tag_subinstallation) ~ "Flinders",
@@ -54,18 +54,19 @@ alldata  %$%
 ## The number of days between those two dates is the "days at large" value for the organism
 
 ## Reload the latest receiver metadata file, if not already loaded (contains the VR2 retrieval dates)
-vr2ws_dep2 <- read_excel('../data/receiver_list_dep2.xlsx', trim_ws = TRUE) %>%
+vr2ws_dep4 <- read_excel('../CSMPWrangling/data/receiverdata/receiver_list_dep4.xlsx', trim_ws = TRUE) %>%
   tibble() %>% # Make into tibble format
   mutate(recovery_date = as.Date(recoverydatetime_timestamp), .keep = 'unused') %>% 
   mutate_if(is.character, as.factor) # Sort out variables
 
 ## Check
-glimpse(vr2ws_dep2)
+glimpse(vr2ws_dep4)
+
 
 ## Merge in just the retrieval dates to the main df
 installation_ri <- 
   installation_ri %>% 
-  merge(vr2ws_dep2[c(4,10)], by='station_name') %>%   # Merges just with station name and recovery date
+  merge(vr2ws_dep4[c(4,10)], by='station_name') %>%   # Merges just with station name and recovery date
   arrange(transmitter_id)
 
 ## Check
@@ -91,19 +92,22 @@ installation_ri <-
 #Note that there will be some duplication of transmitter IDs as a few organisms went between installations, so these have more than one Ri assigned to them:
 installation_ri %$% 
   summary(duplicated(Serial))
-# 103 total, 3 of which duplicated. 
+# 104 total, 26 of which duplicated. 
 
 # Duplicates should just be sharks. Check...
 installation_ri %>% 
   group_by(Serial) %>% 
-  filter(n()>1)
+  filter(n()>1) %>% 
+  filter(Type != "pinger")
 
 
 # Next, we should check missing IDs against project tag list
 missing_from_ri <- 
   project_tags_all %>% 
   anti_join(installation_ri, by = "Serial")
-## 12 transmitter_IDs (9 actual animals) missing - same as identified by tag_asst.Rmd so we already knew about these (see that Rmd for more info)
+
+## 10 transmitter_IDs (8 actual animals) missing - same as identified by tag_asst.Rmd so we already knew about these (see that Rmd for more info)
+## No Osprey sharks went missing
 
 
 
@@ -114,7 +118,7 @@ missing_from_ri <-
 # First need to pull out the T/P entries into a separate df:
 sensor_installation_ri <-                                                   # Extract just the T/P tags from the main df
 project_tags_all %>%                                       # Need to get the serial number and tag info
-  dplyr::select('transmitter_id', 'Type') %>%    # back out of the project_tag_list
+  dplyr::select('transmitter_id') %>%    # back out of the project_tag_list
   merge(installation_ri, by = 'transmitter_id') %>%        # and merge 
   filter(Type != 'pinger') %>%                             # Then pull out just the T/P entries - 44 of them which will become 22
   group_by(Serial) %>%                                     # Group by the Serial #
@@ -125,7 +129,7 @@ project_tags_all %>%                                       # Need to get the ser
 
 nonsensor_installation_ri <- 
   project_tags_all %>%                                       # Need to get the serial number and tag info
-  dplyr::select('transmitter_id', 'Type') %>%    # back out of the project_tag_list
+  dplyr::select('transmitter_id') %>%    # back out of the project_tag_list
   merge(installation_ri, by = 'transmitter_id') %>%        # and merge 
   filter(Type == 'pinger')
 
@@ -144,9 +148,15 @@ anti_join(installation_ri, installation_ri2, by = "transmitter_id")
 installation_ri <- installation_ri %>% 
   mutate(installation_name = fct_relevel(installation_name, c('Osprey', 'Bougainville', 'Holmes', 'Flinders'))) 
 
-#save(installation_ri, file = "../data/RData/installation_ri.RData")
-write_csv(installation_ri, file = "../output/Installation_Ri.csv")
+#save(installation_ri, file = "data/RData/installation_ri.RData")
+#write_csv(installation_ri, file = "output/Installation_Ri.csv")
 
-
+ri_greys %>% 
+#installation_ri2 %>% 
+#sensor_installation_ri %>% 
+  filter(Common_name == "Grey Reef") %>% 
+  group_by(installation_name, Scientific_name) %>% 
+  summarise(mean_Ri = mean(ri_installation),
+            sd_Ri = sd(ri_installation))
 
 #######
