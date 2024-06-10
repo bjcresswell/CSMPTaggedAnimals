@@ -29,18 +29,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load required packages
 ```{r packages, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
-library(writexl)
-library(readxl)
-library(lubridate)
-library(magrittr)
-library(tidyverse)
-#library(VTrack) # Current R version doesn't like VTrack - may need to install an earlier version..
+source("code/packages.R")
 ```
 
-# Load data
+# Load data - from Wrangling Project
 ```{r}
 #rm(list=ls())
-load(file = "../data/RData/alldata.RData")
+getwd()
+load(file = "../CSMPWrangling/data/RData/alldata.RData")
 ```
 
 # Checks
@@ -51,14 +47,14 @@ glimpse(alldata)
 # Check locations etc
 ```{r}
 alldata %>% 
-  dplyr::select(project_name, site_code, installation_name, station_name, station_name_long, Location, Site, station_latitude, station_longitude, Lat, Long) %>% 
+  dplyr::select(project_name, site_code, installation_name, station_name, station_name_long, Location_tagged, Site_tagged, station_latitude, station_longitude, Lat, Long) %>% 
   distinct()
 
-summary(alldata$Site) %>% 
+summary(alldata$station_name_long) %>% 
   as.data.frame()
 ```
 
-Location, Site, Lat, Long -> These are all information on tagging location which is why there are some missing values for these (some of these animals weren't tagged by us). (*Should probably go back through whole wrangling script and make this clear*)
+Lat, Long -> These are relate to tagging location which is why there are some missing values for these (some of these animals weren't tagged by us). (*Should probably go back through whole wrangling script and make this clear*)
 
 
 # Filter out just the organisms we are interested in (the big movers!)
@@ -108,7 +104,7 @@ movers %$%
 1. Any detections external to our array (in this case only relevant for the GRS that turned up at Saunders Reef - 64103):
 
 ```{r}
-ext_dets <- read_excel('../data/outside_array_fromAB.xlsx', trim_ws = TRUE) %>% 
+ext_dets <- read_excel('data/outside_array_fromAB.xlsx', trim_ws = TRUE) %>% 
 transmute(transmitter_id = factor(paste(`code space`, ID, sep = '-')),      # Going to make this the same structure as the tag_locs object below..
          Scientific_name = factor(Scientific_name),
          Location = factor(location),
@@ -136,7 +132,7 @@ ext_dets
 # Make df with original tagging locations in
 ```{r}
 tag_locs <- movers %>% 
-  dplyr::select(transmitter_id, Scientific_name, shark_id, sharkloc, Location, Site, Lat, Long, Date) %>% 
+  dplyr::select(transmitter_id, Scientific_name, shark_id, sharkloc, Location_tagged, Site_tagged, Lat, Long, Date_tagged) %>% 
   distinct()
  
   tag_locs
@@ -163,6 +159,41 @@ movers <-
 movers
 
 ```
+
+# Quick aside to pull out some movement data on transmitter_id "A69-9001-64103"
+
+```{r fig.height = 100/25.4, fig.width=300/25.4}
+# Tagged in Feburary 2021
+movers %>% 
+  filter(transmitter_id == "A69-9001-64103") 
+
+# Spent over 6 months at Osprey
+movers %>% 
+  filter(transmitter_id == "A69-9001-64103")  %>% 
+  ggplot(mapping = aes(x = detection_timestamp, y = transmitter_id)) + 
+  scale_x_datetime(date_breaks = "week") +
+  theme_minimal() +
+  xlab("Date") + 
+  ylab("Tag") +
+  theme(axis.text.x = element_text(angle = 45, size = 9)) +
+  geom_point() 
+```
+
+# Looks like she returned 
+
+```{r}
+#grey1 <- 
+#movers %>% 
+#  filter(transmitter_id == "A69-9001-64103") %>% 
+ # mutate(date = as.Date(detection_timestamp)) %>% 
+#  dplyr::select(transmitter_id, station_name_long, Date) %>% 
+#  distinct() %>% 
+#  mutate(days_elapsed = Date - lag(Date, default = first(Date)))
+
+
+
+```
+
 
 ## For Flinders and Holmes Reefs we make a distinction between N/S, E/W so we'll put in a variable that handles that.
 We'll call it "sublocation". Obviously, the other reefs/locations won't have this, so we'll coalesce the location values over to that variable to avoid having NAs. Doesn't really matter either way..
