@@ -8,22 +8,17 @@
 
 getwd()
 #rm(list=ls())
-#setwd("../code")
 
 
 # Packages
-library(writexl)
-library(readxl)
-library(lubridate)
-library(tidyverse)
-
+source("code/packages.R")
 
 # Load the 2 files and only retain the ID column
 # Sharks
-project_IDs_sharks <- read_excel("../data/csmp_sharks.xlsx", trim_ws = TRUE) %>% 
+project_IDs_sharks <- read_excel("data/csmp_sharks.xlsx", trim_ws = TRUE) %>% 
   dplyr::select(ID)
 # Teleosts
-project_IDs_teleosts <- read_excel("../data/csmp_teleosts.xlsx", trim_ws = TRUE) %>% 
+project_IDs_teleosts <- read_excel("data/csmp_teleosts.xlsx", trim_ws = TRUE) %>% 
   dplyr::select(ID)
 
 # Bind together
@@ -34,7 +29,7 @@ project_IDs <- project_IDs_sharks %>%
 # Then merge with the regional tag list to extract the rest of the metadata
 
 # Need to get the regional list in first:
-source("../code/regional_tag_list.R")
+source("code/regional_tag_list.R")
 
 
 # List of total project tags

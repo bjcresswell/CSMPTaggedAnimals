@@ -9,21 +9,17 @@
 # The only precaution that will be needed is to make sure this file is updated manually over time (as new tags get added to the wider db)
 
 # Set wd
-setwd("~/OneDrive - James Cook University/Ben PhD/Data & analysis/CSMPTaggedAnimals/code")
 #rm(list=ls())
 
 
 # Packages
-library(writexl)
-library(readxl)
-library(lubridate)
-library(tidyverse)
+source("code/packages.R")
 
 
 # These are in 2 tabs in the same spreadsheet so need to load one at a time and get into a format for row binding:
 
 # Teleosts:
-regional_teleost_list <- read_excel('../data/Master_tagged_animals_BC.xlsx', 2, trim_ws = TRUE) %>% # imports the spreadsheet with the list of tagged teleosts
+regional_teleost_list <- read_excel('data/Master_tagged_animals_BC.xlsx', 2, trim_ws = TRUE) %>% # imports the spreadsheet with the list of tagged teleosts
   mutate(transmitter_id=paste(Freq, Space, ID, sep = '-'), .after=ID) %>% # Creates a new column for the complete Tag ID
   dplyr::select(!25) %>% # Gets rid of the notes column
   mutate(Org_type = factor('Teleost')) # Column with Teleost vs Shark -> may need later
@@ -32,7 +28,7 @@ regional_teleost_list %$%
   summary(factor(Common_name))
 
 # Sharks:
-regional_shark_list <- read_excel('../data/Master_tagged_animals_BC.xlsx', 1, trim_ws = TRUE) %>% # imports the spreadsheet with the list of tagged teleosts
+regional_shark_list <- read_excel('data/Master_tagged_animals_BC.xlsx', 1, trim_ws = TRUE) %>% # imports the spreadsheet with the list of tagged teleosts
   mutate(transmitter_id=paste(Freq, Space, ID, sep = '-'), .after=ID) %>% # Creates a new column for the complete Tag ID
   dplyr::select(!25) %>% # Gets rid of the sat-tag column
   mutate(Org_type = factor('Elasmobranch')) # Column with Teleost vs Shark -> may need later
